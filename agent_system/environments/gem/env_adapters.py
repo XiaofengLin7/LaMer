@@ -45,6 +45,8 @@ def _ensure_gem_registered():
     if _gem_registered:
         return
     try:
+        import nltk
+        nltk.download('words', quiet=True)  # pre-download silently before gem imports it
         import gem  # noqa
         import gem.envs  # noqa: F401
         from gem.envs.registration import register
