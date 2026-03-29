@@ -80,6 +80,7 @@ class GEMMultiEpisodeWrapper:
         self._total_steps: int = 0
         self._episode_index: int = 0
         self._episode_step: int = 0
+        self._is_done: bool = False
         self._episode_successes: List[bool] = []
         self._episode_lengths: List[int] = []
         self._init_observation: str = ""
@@ -100,6 +101,7 @@ class GEMMultiEpisodeWrapper:
         self._total_steps = 0
         self._episode_index = 0
         self._episode_step = 0
+        self._is_done = False
         self._episode_successes = []
         self._episode_lengths = []
 
@@ -122,6 +124,7 @@ class GEMMultiEpisodeWrapper:
         self._total_steps = 0
         self._episode_index = 0
         self._episode_step = 0
+        self._is_done = False
         self._episode_successes = []
         self._episode_lengths = []
 
@@ -147,7 +150,7 @@ class GEMMultiEpisodeWrapper:
             info: Dict with 'won', 'episode_index', etc.
         """
         # Guard: if already done, return no-op (rollout loop may call step on done envs)
-        if self._total_steps >= self.total_step_cap:
+        if self._is_done:
             info = {
                 'won': self.is_correct,
                 'episode_index': self._episode_index,
@@ -169,6 +172,8 @@ class GEMMultiEpisodeWrapper:
         shaped_reward = self.success_reward if success else 0.0
         # Stop on first episode success (matches LaMer's stop-on-success across attempts)
         outer_done = self._total_steps >= self.total_step_cap or success
+        if outer_done:
+            self._is_done = True
 
         if inner_done:
             self._episode_successes.append(success)
