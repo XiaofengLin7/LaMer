@@ -1,0 +1,58 @@
+# Multi-Task Multi-Episode GEM Training Configuration for LaMer
+#
+# Task specs match Orbit's multi_task_multi_episode_config.yaml
+# for fair comparison. Adapter class names use LaMer-local names.
+#
+# Val tasks: maze + mastermind only (ALFWorld evaluated separately
+# via LaMer's existing alfworld environment).
+
+train_tasks:
+  - env_id: "rockpaperscissors"
+    max_turns_per_episode: 5
+    total_step_cap: 15
+    train_size: 512
+    inner_env_class: 'RockPaperScissorsEnvAdapter'
+    min_dom: 0.4
+
+  - env_id: "game:Minesweeper-v0-only-reveal"
+    max_turns_per_episode: 8
+    total_step_cap: 24
+    train_size: 512
+    inner_env_class: 'GEMEnvAdapter'
+
+  - env_id: "game:Hangman-v0-easy"
+    max_turns_per_episode: 10
+    total_step_cap: 30
+    train_size: 512
+    inner_env_class: 'GEMEnvAdapter'
+
+  - env_id: "game:Wordle-v0-hard"
+    max_turns_per_episode: 10
+    total_step_cap: 30
+    train_size: 512
+    inner_env_class: 'GEMEnvAdapter'
+
+  - env_id: "game:Blackjack-v0"
+    max_turns_per_episode: 4
+    total_step_cap: 12
+    train_size: 512
+    inner_env_class: 'BlackjackEnvAdapter'
+
+val_tasks:
+  - env_id: "maze"
+    max_turns_per_episode: 9
+    shortest_path_max_length: 8
+    shortest_path_min_length: 7
+    total_step_cap: 27
+    test_size: 256
+    inner_env_class: 'MazeEnvAdapter'
+    shapes: [[6,6],[7,6],[7,7],[6,7]]
+
+  - env_id: "game:Mastermind-v0-random"
+    max_turns_per_episode: 3
+    total_step_cap: 9
+    code_length: 3
+    num_numbers: 6
+    duplicate_numbers: False
+    test_size: 256
+    inner_env_class: 'GEMEnvAdapter'

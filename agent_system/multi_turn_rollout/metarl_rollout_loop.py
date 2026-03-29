@@ -136,6 +136,18 @@ class TrajectoryCollector:
         else:
             raw_prompt = prompt_with_chat_template
         
+        # Debug: measure token count BEFORE truncation
+        _pre_trunc_ids = self.tokenizer.encode(prompt_with_chat_template)
+        _pre_trunc_len = len(_pre_trunc_ids)
+        if _pre_trunc_len > self.config.data.max_prompt_length:
+            print(f"\n{'='*80}")
+            print(f"[DEBUG] OVERLONG PROMPT: {_pre_trunc_len} tokens > max_prompt_length={self.config.data.max_prompt_length}")
+            print(f"[DEBUG] raw_prompt chars: {len(raw_prompt)}")
+            print(f"[DEBUG] truncation setting: {self.config.data.truncation}")
+            print(f"[DEBUG] PROMPT TEXT:")
+            print(raw_prompt)
+            print(f"{'='*80}\n")
+
         input_ids, attention_mask = verl_F.tokenize_and_postprocess_data(prompt=prompt_with_chat_template,
                                                                             tokenizer=self.tokenizer,
                                                                             max_length=self.config.data.max_prompt_length,
@@ -303,6 +315,13 @@ class TrajectoryCollector:
         """
         # Initial observations from the environment
         num_attempts = envs.num_attempts
+
+        # For GEM envs: repeat gen_batch first (for task dicts), then reconfigure, then reset
+        if hasattr(envs, 'reconfigure_from_batch'):
+            if len(gen_batch.batch) != envs.num_processes and self.config.env.rollout.n > 0:
+                gen_batch = gen_batch.repeat(repeat_times=self.config.env.rollout.n, interleave=True)
+            envs.reconfigure_from_batch(gen_batch)
+
         obs, infos = envs.reset()
 
         # Initialize trajectory collection

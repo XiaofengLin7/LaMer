@@ -65,6 +65,8 @@ class TaskRunner:
             from agent_system.environments.alfworld.env_manager import make_envs
         elif 'webshop' in config.env.env_name.lower():
             from agent_system.environments.webshop.env_manager import make_envs
+        elif 'gem' in config.env.env_name.lower():
+            from agent_system.environments.gem import make_envs
         else:
             raise NotImplementedError(f"Environment {config.env.env_name} is not supported.")
         envs, val_envs = make_envs(config)
