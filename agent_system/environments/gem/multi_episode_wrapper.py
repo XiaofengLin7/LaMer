@@ -167,7 +167,8 @@ class GEMMultiEpisodeWrapper:
         )
 
         shaped_reward = self.success_reward if success else 0.0
-        outer_done = self._total_steps >= self.total_step_cap
+        # Stop on first episode success (matches LaMer's stop-on-success across attempts)
+        outer_done = self._total_steps >= self.total_step_cap or success
 
         if inner_done:
             self._episode_successes.append(success)
