@@ -7,6 +7,7 @@ handles multiple episodes with reflection between them.
 
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from .env_adapters import resolve_adapter_class
@@ -152,8 +153,13 @@ class GEMMultiEpisodeWrapper:
     def _reset_inner_env(self) -> Tuple[str, dict]:
         result = self.inner_env.reset(seed=self.seed, task=self.task_dict)
         if not self._game_rules and hasattr(self.inner_env, 'get_rules'):
-            self._game_rules = self.inner_env.get_rules()
+            self._game_rules = self._fix_turn_count(self.inner_env.get_rules())
         return result
+
+    def _fix_turn_count(self, rules: str) -> str:
+        """Replace gem's default turn count with our max_turns_per_episode."""
+        # "within 25 turns" → "within 10 turns", etc.
+        return re.sub(r'within \d+ turns', f'within {self.max_turns_per_episode} turns', rules)
 
     @staticmethod
     def _is_episode_success(done: bool, info: dict, reward: float) -> bool:
