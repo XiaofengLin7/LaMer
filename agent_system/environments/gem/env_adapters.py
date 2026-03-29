@@ -122,7 +122,9 @@ class GEMEnvAdapter:
         return game_state, info
 
     def step(self, action: Any) -> tuple[Any, float, bool, dict]:
-        observation, reward, terminated, truncated, info = self._env.step(str(action))
+        # Gem envs parse \boxed{} internally; re-wrap since projection strips it
+        boxed_action = f"\\boxed{{{action}}}"
+        observation, reward, terminated, truncated, info = self._env.step(boxed_action)
         done = bool(terminated or truncated)
         enriched_info = dict(info or {})
         enriched_info.update({
