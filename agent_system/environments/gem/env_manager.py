@@ -126,8 +126,8 @@ class GEMEnvironmentManager(EnvironmentManagerBase):
         self.reflection_type = config.env.get('reflection_type', 'reflection_only')
         assert self.reflection_type in ['history_and_reflection', 'reflection_only', 'history_only']
 
-        # Parse max_turns from config; this should be max(total_step_cap) across all tasks
-        self.max_turns = config.env.get('max_turns', 30)
+        # max_turns = max(max_turns_per_episode); updated dynamically in reconfigure
+        self.max_turns = config.env.get('max_turns', 10)
 
         # Init states (initial observations from inner envs)
         self.init_states = [None for _ in range(self.num_processes)]
@@ -171,12 +171,12 @@ class GEMEnvironmentManager(EnvironmentManagerBase):
         assert len(task_dicts) == self.num_processes, \
             f"Expected {self.num_processes} tasks, got {len(task_dicts)}"
 
-        # Store data_sources and max_episodes for per-task metrics
+        # Store data_sources for per-task metrics
         self.data_sources = [td.get('data_source', 'unknown') for td in task_dicts]
-        self.max_episodes = [
-            int(td.get('total_step_cap', 30)) // int(td.get('max_turns_per_episode', 10))
-            for td in task_dicts
-        ]
+
+        # Dynamically set max_turns to max(max_turns_per_episode) across tasks
+        max_turns_per_ep = [int(td.get('max_turns_per_episode', 10)) for td in task_dicts]
+        self.max_turns = max(max_turns_per_ep)
 
         # Reconfigure workers
         self.envs.reconfigure(task_dicts)
@@ -321,58 +321,36 @@ class GEMEnvironmentManager(EnvironmentManagerBase):
         return postprocess_text_obs
 
     def success_evaluator(self, *args, **kwargs) -> Dict[str, np.ndarray]:
-        """Evaluate episode success with per-task and per-episode breakdown.
+        """Evaluate success rates: overall and per-task.
 
         Reports:
-        - success_rate[0]: overall any-episode success (for compatibility)
-        - success_rate/{data_source}: per-task overall success rate
-        - success_rate/{data_source}/episode_{n}: per-task per-episode success rate
+        - success_rate[0]: overall success (for compatibility)
+        - success_rate/{data_source}: per-task success rate
         """
         total_infos = kwargs['total_infos']
         total_batch_list = kwargs['total_batch_list']
         batch_size = len(total_batch_list)
 
         success = defaultdict(list)
-        # Per-task per-episode tracking: {data_source: {ep_idx: [bool, ...]}}
-        per_task_episode = defaultdict(lambda: defaultdict(list))
-        # Per-task overall tracking
         per_task_overall = defaultdict(list)
 
         for bs in range(batch_size):
             data_source = self.data_sources[bs] if bs < len(self.data_sources) else 'unknown'
 
-            # Find the last active play step to get final episode_successes
-            episode_successes = []
+            # Find the last active play step to get won status
             won = False
             for i in reversed(range(len(total_batch_list[bs]))):
                 batch_item = total_batch_list[bs][i]
                 if batch_item['active_masks'] and batch_item['phase'] == 'play':
                     info = total_infos[bs][i]
-                    episode_successes = info.get('episode_successes', [])
                     won = info.get('won', False)
                     break
 
-            # Overall success (any episode succeeded)
             success['success_rate[0]'].append(won)
-
-            # Per-task overall
             per_task_overall[data_source].append(won)
 
-            # Per-task per-episode (capped at total_step_cap // max_turns_per_episode)
-            max_ep = self.max_episodes[bs] if bs < len(self.max_episodes) else 3
-            for ep_idx, ep_success in enumerate(episode_successes):
-                if ep_idx >= max_ep:
-                    break
-                per_task_episode[data_source][ep_idx].append(ep_success)
-
-        # Add per-task overall success rates
         for ds, vals in per_task_overall.items():
             success[f'success_rate/{ds}'] = vals
-
-        # Add per-task per-episode success rates
-        for ds, ep_dict in per_task_episode.items():
-            for ep_idx in sorted(ep_dict.keys()):
-                success[f'success_rate/{ds}/episode_{ep_idx + 1}'] = ep_dict[ep_idx]
 
         return {key: np.array(value) for key, value in success.items()}
 

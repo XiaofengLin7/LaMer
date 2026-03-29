@@ -75,8 +75,8 @@ python3 -m verl.trainer.main_ppo \
     env.rollout.n=$group_size \
     env.num_attempts=3 \
     +env.do_reflection=True \
-    env.max_steps=30 \
-    env.max_turns=30 \
+    env.max_steps=10 \
+    env.max_turns=10 \
     +env.reflection_type=$reflection_type \
     trainer.critic_warmup=0 \
     trainer.logger=['console','wandb'] \
