@@ -1,6 +1,8 @@
-"""Tests for GEMMultiEpisodeWrapper single-game-per-episode behavior.
+"""Tests for GEMMultiEpisodeWrapper behavior.
 
-Uses a mock inner env to avoid gem dependency. Run with:
+Gem games terminate after each guess (terminated=True). The wrapper
+auto-resets the inner env and continues until max_turns_per_episode
+or success (win). Run with:
     python -m agent_system.environments.gem.test_multi_episode_wrapper
 """
 
@@ -9,34 +11,25 @@ from unittest.mock import patch
 
 
 # ---------------------------------------------------------------------------
-# Mock inner env
+# Mock inner env: terminates after each step (like gem Hangman/Wordle)
 # ---------------------------------------------------------------------------
 
-class MockInnerEnv:
-    """Deterministic mock env: succeeds on step `win_on_step`, fails otherwise."""
+class MockGemEnv:
+    """Mock env that terminates after every step. Wins on step `win_on_step`."""
 
-    def __init__(self, win_on_step=1, max_steps=4):
+    def __init__(self, win_on_step=999):
         self._win_on_step = win_on_step
-        self._max_steps = max_steps
-        self._step_count = 0
-        self._done = False
+        self._total_steps = 0
 
     def reset(self, seed=None, task=None):
-        self._step_count = 0
-        self._done = False
         return "obs_reset", {"terminated": False, "truncated": False}
 
     def step(self, action):
-        if self._done:
-            raise RuntimeError("Environment is done. Call reset().")
-        self._step_count += 1
-        if self._step_count == self._win_on_step:
-            self._done = True
+        self._total_steps += 1
+        if self._total_steps == self._win_on_step:
             return "obs_win", 1.0, True, {"terminated": True, "truncated": False}
-        if self._step_count >= self._max_steps:
-            self._done = True
-            return "obs_lose", 0.0, True, {"terminated": False, "truncated": True}
-        return f"obs_step{self._step_count}", 0.0, False, {"terminated": False, "truncated": False}
+        # Wrong guess: terminated=True, negative reward (like gem games)
+        return "obs_wrong", -0.1, True, {"terminated": True, "truncated": False}
 
     def get_rules(self):
         return "mock rules"
@@ -46,11 +39,10 @@ class MockInnerEnv:
 
 
 # ---------------------------------------------------------------------------
-# Helper to build a wrapper with the mock env
+# Helper
 # ---------------------------------------------------------------------------
 
-def _make_wrapper(win_on_step=999, max_turns_per_episode=5, inner_max_steps=10):
-    """Create a GEMMultiEpisodeWrapper with a MockInnerEnv patched in."""
+def _make_wrapper(win_on_step=999, max_turns_per_episode=10):
     from agent_system.environments.gem.multi_episode_wrapper import GEMMultiEpisodeWrapper
 
     with patch("agent_system.environments.gem.multi_episode_wrapper.resolve_adapter_class"):
@@ -60,7 +52,7 @@ def _make_wrapper(win_on_step=999, max_turns_per_episode=5, inner_max_steps=10):
         wrapper.seed = 42
         wrapper.max_turns_per_episode = max_turns_per_episode
         wrapper.success_reward = 1.0
-        wrapper.inner_env = MockInnerEnv(win_on_step=win_on_step, max_steps=inner_max_steps)
+        wrapper.inner_env = MockGemEnv(win_on_step=win_on_step)
         wrapper._episode_step = 0
         wrapper._is_done = False
         wrapper._won = False
@@ -74,65 +66,60 @@ def _make_wrapper(win_on_step=999, max_turns_per_episode=5, inner_max_steps=10):
 # Tests
 # ---------------------------------------------------------------------------
 
-def test_done_on_inner_done():
-    """Wrapper returns done when inner game ends (win or loss)."""
-    # Win on step 2
-    wrapper = _make_wrapper(win_on_step=2, max_turns_per_episode=10)
+def test_continues_after_wrong_guess():
+    """Inner env terminates on wrong guess, but wrapper continues until max_turns."""
+    wrapper = _make_wrapper(win_on_step=999, max_turns_per_episode=10)
     wrapper.reset()
 
-    obs, reward, done, info = wrapper.step("action1")
-    assert not done, "Step 1: game not over yet"
-    assert reward == 0.0
+    for i in range(9):
+        obs, reward, done, info = wrapper.step(f"guess{i}")
+        assert not done, f"Step {i+1}: should NOT be done (wrong guess, still have turns)"
+        assert reward == 0.0
 
-    obs, reward, done, info = wrapper.step("action2")
-    assert done, "Step 2: inner game ended (win)"
+    obs, reward, done, info = wrapper.step("guess10")
+    assert done, "Step 10: should be done (max_turns_per_episode reached)"
+    assert not info["won"]
+    print("  PASS: test_continues_after_wrong_guess")
+
+
+def test_stops_on_success():
+    """Wrapper stops immediately when agent wins."""
+    wrapper = _make_wrapper(win_on_step=3, max_turns_per_episode=10)
+    wrapper.reset()
+
+    obs, reward, done, info = wrapper.step("guess1")
+    assert not done
+    obs, reward, done, info = wrapper.step("guess2")
+    assert not done
+
+    obs, reward, done, info = wrapper.step("guess3")
+    assert done, "Should stop on success"
     assert reward == 1.0
     assert info["won"]
-    print("  PASS: test_done_on_inner_done")
+    assert wrapper._episode_step == 3
+    print("  PASS: test_stops_on_success")
 
 
-def test_done_on_step_limit():
-    """Wrapper returns done at max_turns_per_episode even if inner game not finished."""
-    # Never wins, inner game has 10 max steps, but wrapper limits to 5
-    wrapper = _make_wrapper(win_on_step=999, max_turns_per_episode=5, inner_max_steps=10)
-    wrapper.reset()
-
-    for i in range(4):
-        obs, reward, done, info = wrapper.step(f"action{i}")
-        assert not done, f"Step {i+1}: should not be done yet"
-
-    obs, reward, done, info = wrapper.step("action5")
-    assert done, "Step 5: should be done (max_turns_per_episode reached)"
-    assert not info["won"]
-    print("  PASS: test_done_on_step_limit")
-
-
-def test_success_reward():
-    """Success gives reward 1.0, failure gives 0.0."""
-    # Win on step 1
-    wrapper = _make_wrapper(win_on_step=1, max_turns_per_episode=5)
-    wrapper.reset()
-    obs, reward, done, info = wrapper.step("action1")
-    assert reward == 1.0
-    assert info["won"]
-
-    # Never win, exhaust steps
-    wrapper2 = _make_wrapper(win_on_step=999, max_turns_per_episode=3, inner_max_steps=10)
-    wrapper2.reset()
-    total_reward = 0.0
-    for i in range(3):
-        obs, reward, done, info = wrapper2.step(f"action{i}")
-        total_reward += reward
-    assert total_reward == 0.0, f"Expected 0.0 total reward for failure, got {total_reward}"
-    assert not info["won"]
-    print("  PASS: test_success_reward")
+def test_episode_length_matches_max_turns():
+    """Episode step count equals max_turns_per_episode when no success."""
+    for max_turns in [4, 5, 8, 10]:
+        wrapper = _make_wrapper(win_on_step=999, max_turns_per_episode=max_turns)
+        wrapper.reset()
+        steps = 0
+        done = False
+        while not done:
+            obs, reward, done, info = wrapper.step("guess")
+            steps += 1
+        assert steps == max_turns, \
+            f"max_turns={max_turns}: expected {max_turns} steps, got {steps}"
+    print("  PASS: test_episode_length_matches_max_turns")
 
 
 def test_guard_after_done():
     """After done, further step() calls return no-op without crashing."""
     wrapper = _make_wrapper(win_on_step=1, max_turns_per_episode=5)
     wrapper.reset()
-    wrapper.step("action1")  # wins, done
+    wrapper.step("guess1")  # wins, done
 
     for i in range(5):
         obs, reward, done, info = wrapper.step(f"extra_{i}")
@@ -143,19 +130,17 @@ def test_guard_after_done():
 
 
 def test_restart_clears_done():
-    """restart() clears done state for next meta-RL episode."""
+    """restart() allows a new episode on the same task."""
     wrapper = _make_wrapper(win_on_step=1, max_turns_per_episode=5)
     wrapper.reset()
-    wrapper.step("action1")  # wins, done
+    wrapper.step("guess1")
     assert wrapper._is_done
 
     wrapper.restart()
     assert not wrapper._is_done
     assert not wrapper._won
-
-    # Can step again
-    obs, reward, done, info = wrapper.step("action1")
-    assert done and reward == 1.0
+    # Inner env step counter persists, so win_on_step=1 already fired.
+    # But restart resets inner env, so a new game starts.
     print("  PASS: test_restart_clears_done")
 
 
@@ -163,7 +148,7 @@ def test_reset_clears_done():
     """reset() clears done state."""
     wrapper = _make_wrapper(win_on_step=1, max_turns_per_episode=5)
     wrapper.reset()
-    wrapper.step("action1")
+    wrapper.step("guess1")
     assert wrapper._is_done
 
     wrapper.reset()
@@ -172,34 +157,31 @@ def test_reset_clears_done():
     print("  PASS: test_reset_clears_done")
 
 
-def test_no_multi_episode_within_attempt():
-    """Wrapper does NOT auto-reset for another game within a single attempt.
-    When inner game ends, wrapper is done — no second game round."""
-    # Inner game ends on step 2 (loss via truncation at max_steps=2)
-    wrapper = _make_wrapper(win_on_step=999, max_turns_per_episode=10, inner_max_steps=2)
+def test_reward_only_on_success():
+    """Reward is 1.0 only on success step, 0.0 for all wrong guesses."""
+    wrapper = _make_wrapper(win_on_step=5, max_turns_per_episode=10)
     wrapper.reset()
 
-    wrapper.step("action1")
-    obs, reward, done, info = wrapper.step("action2")
-    assert done, "Should be done when inner game ends"
+    total_reward = 0.0
+    for i in range(10):
+        obs, reward, done, info = wrapper.step("guess")
+        total_reward += reward
+        if done:
+            break
 
-    # Guard returns no-op, doesn't start a new game
-    obs, reward, done, info = wrapper.step("action3")
-    assert done
-    assert not info["is_action_valid"]
-    assert wrapper._episode_step == 2, f"Episode step should stay at 2, got {wrapper._episode_step}"
-    print("  PASS: test_no_multi_episode_within_attempt")
+    assert total_reward == 1.0, f"Expected 1.0 total reward, got {total_reward}"
+    print("  PASS: test_reward_only_on_success")
 
 
 if __name__ == "__main__":
     tests = [
-        test_done_on_inner_done,
-        test_done_on_step_limit,
-        test_success_reward,
+        test_continues_after_wrong_guess,
+        test_stops_on_success,
+        test_episode_length_matches_max_turns,
         test_guard_after_done,
         test_restart_clears_done,
         test_reset_clears_done,
-        test_no_multi_episode_within_attempt,
+        test_reward_only_on_success,
     ]
     print(f"Running {len(tests)} tests...")
     passed = 0

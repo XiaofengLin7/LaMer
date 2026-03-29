@@ -117,12 +117,18 @@ class GEMMultiEpisodeWrapper:
 
         shaped_reward = self.success_reward if success else 0.0
 
-        # Done when: game round finished OR step limit reached
-        outer_done = inner_done or self._episode_step >= self.max_turns_per_episode
+        # Done when: agent wins OR step limit reached.
+        # NOT on inner_done alone — gem games terminate after each guess
+        # but allow multiple guesses within one episode (e.g., Hangman 10 guesses).
+        outer_done = success or self._episode_step >= self.max_turns_per_episode
         if outer_done:
             self._is_done = True
         if success:
             self._won = True
+
+        # If inner env is done but episode continues, reset for next guess
+        if inner_done and not outer_done:
+            self.inner_env.reset(seed=self.seed, task=self.task_dict)
 
         info['won'] = self._won
         info['is_action_valid'] = True
