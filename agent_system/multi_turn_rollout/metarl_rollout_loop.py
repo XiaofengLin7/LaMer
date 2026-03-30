@@ -295,9 +295,10 @@ class TrajectoryCollector:
 
     def vanilla_multi_turn_loop(
             self,
-            gen_batch: DataProto, 
-            actor_rollout_wg, 
+            gen_batch: DataProto,
+            actor_rollout_wg,
             envs,
+            is_train: bool = True,
             ) -> DataProto:
         """
         Collects trajectories through parallel agent-environment agent_loop.
@@ -366,15 +367,13 @@ class TrajectoryCollector:
         for attempt_idx, phase, steps in phase_and_steps:
             if phase == 'reflect':
                 obs, infos = envs.reflect()
-                # !IMPORTANT: do early stop here
-                # is_done = np.zeros(batch_size, dtype=bool)
-                is_done = is_won.copy()
+                # !IMPORTANT: do early stop here (training only; validation runs all attempts)
+                is_done = is_won.copy() if is_train else np.zeros(batch_size, dtype=bool)
 
             if phase == 'play' and attempt_idx > 0:
                 obs, infos = envs.restart()
-                # !IMPORTANT: do early stop here
-                # is_done = np.zeros(batch_size, dtype=bool)
-                is_done = is_won.copy()
+                # !IMPORTANT: do early stop here (training only; validation runs all attempts)
+                is_done = is_won.copy() if is_train else np.zeros(batch_size, dtype=bool)
 
             # Trajectory collection loop
             for _step in range(steps):
@@ -462,6 +461,7 @@ class TrajectoryCollector:
                     total_infos=total_infos,
                     total_batch_list=total_batch_list,
                     episode_lengths=episode_lengths,
+                    is_train=is_train,
                     )
         
         return total_batch_list, episode_lengths, success, traj_uid, traj_cot_logs
@@ -492,7 +492,8 @@ class TrajectoryCollector:
             gen_batch=gen_batch,
             actor_rollout_wg=actor_rollout_wg,
             envs=envs,
-        )        
+            is_train=is_train,
+        )
 
         assert len(total_batch_list) == len(total_episode_lengths)
         assert len(total_batch_list) == len(total_traj_uid)

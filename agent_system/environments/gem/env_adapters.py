@@ -45,8 +45,15 @@ def _ensure_gem_registered():
     if _gem_registered:
         return
     try:
+        # Monkey-patch nltk.download to suppress all output — gem calls it
+        # from multiple internal modules without quiet=True.
         import nltk
-        nltk.download('words', quiet=True)  # pre-download silently before gem imports it
+        _orig_nltk_download = nltk.download
+        def _quiet_download(*args, **kwargs):
+            kwargs['quiet'] = True
+            return _orig_nltk_download(*args, **kwargs)
+        nltk.download = _quiet_download
+
         import gem  # noqa
         import gem.envs  # noqa: F401
         from gem.envs.registration import register

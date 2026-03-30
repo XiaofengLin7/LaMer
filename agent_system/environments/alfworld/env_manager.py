@@ -253,38 +253,43 @@ class AlfWorldEnvironmentManager(EnvironmentManagerBase):
                 break
     
     
-    def success_evaluator(self, *args, **kwargs) -> Dict[str, np.ndarray]:
+    def success_evaluator(self, *args, is_train=True, **kwargs) -> Dict[str, np.ndarray]:
         """
-        Evaluate if the episodes are successful or not. 
-        (Default) implementation is to check info['won'] of the last step.
-        
-        Returns:
-        - success (np.ndarray or torch.Tensor): 1 if the episode is successful, 0 otherwise.
+        Evaluate if the episodes are successful or not.
+
+        Training: cumulative success_rate[k] = won on any attempt 0..k
+        Validation: per-episode episode_k/success_rate = won specifically in episode k
         """
         total_infos = kwargs['total_infos']
         total_batch_list = kwargs['total_batch_list']
         batch_size = len(total_batch_list)
-        
+
         success = defaultdict(list)
-        
+
         for bs in range(batch_size):
-            # self._process_batch(bs, total_batch_list, total_infos, success)
             task_type = total_infos[bs][0]['task_type']
             wons = [False for _ in range(self.num_attempts)]
-            for i in reversed(range(len(total_batch_list[bs]))):  
-                batch_item = total_batch_list[bs][i] 
+            for i in reversed(range(len(total_batch_list[bs]))):
+                batch_item = total_batch_list[bs][i]
                 if batch_item['active_masks']:
                     info = total_infos[bs][i]
                     traj_idx = batch_item['traj_idx']
                     if batch_item['phase'] == 'play':
                         wons[traj_idx] = wons[traj_idx] or info['won']
 
-            _won = False            
-            for traj_idx, won in enumerate(wons):      
-                _won = _won or won
-                success[f'{task_type}|success_rate[{traj_idx}]'].append(_won)
-                success[f'success_rate[{traj_idx}]'].append(_won)
-        
+            if is_train:
+                _won = False
+                for traj_idx, won in enumerate(wons):
+                    _won = _won or won
+                    success[f'{task_type}|success_rate[{traj_idx}]'].append(_won)
+                    success[f'success_rate[{traj_idx}]'].append(_won)
+            else:
+                for traj_idx, won in enumerate(wons):
+                    success[f'episode_{traj_idx}/{task_type}|success_rate'].append(won)
+                    success[f'episode_{traj_idx}/success_rate'].append(won)
+                success[f'success_rate'].append(any(wons))
+                success[f'{task_type}|success_rate'].append(any(wons))
+
         return {key: np.array(value) for key, value in success.items()}
 
 

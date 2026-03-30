@@ -320,37 +320,45 @@ class GEMEnvironmentManager(EnvironmentManagerBase):
 
         return postprocess_text_obs
 
-    def success_evaluator(self, *args, **kwargs) -> Dict[str, np.ndarray]:
-        """Evaluate success rates: overall and per-task.
+    def success_evaluator(self, *args, is_train=True, **kwargs) -> Dict[str, np.ndarray]:
+        """Evaluate success rates: per-attempt (cumulative) and per-task.
 
-        Reports:
-        - success_rate[0]: overall success (for compatibility)
-        - success_rate/{data_source}: per-task success rate
+        Training: cumulative success_rate[k] = won on any attempt 0..k
+        Validation: per-episode episode_k/success_rate = won specifically in episode k
         """
         total_infos = kwargs['total_infos']
         total_batch_list = kwargs['total_batch_list']
         batch_size = len(total_batch_list)
 
         success = defaultdict(list)
-        per_task_overall = defaultdict(list)
 
         for bs in range(batch_size):
             data_source = self.data_sources[bs] if bs < len(self.data_sources) else 'unknown'
 
-            # Find the last active play step to get won status
-            won = False
+            # Determine which attempt won (if any)
+            wons = [False] * self.num_attempts
             for i in reversed(range(len(total_batch_list[bs]))):
                 batch_item = total_batch_list[bs][i]
                 if batch_item['active_masks'] and batch_item['phase'] == 'play':
                     info = total_infos[bs][i]
-                    won = info.get('won', False)
-                    break
+                    traj_idx = batch_item['traj_idx']
+                    wons[traj_idx] = wons[traj_idx] or info.get('won', False)
 
-            success['success_rate[0]'].append(won)
-            per_task_overall[data_source].append(won)
-
-        for ds, vals in per_task_overall.items():
-            success[f'success_rate/{ds}'] = vals
+            if is_train:
+                # Cumulative success: success_rate[k] = won on any attempt 0..k
+                _won = False
+                for traj_idx, won in enumerate(wons):
+                    _won = _won or won
+                    success[f'success_rate[{traj_idx}]'].append(_won)
+                    success[f'success_rate/{data_source}[{traj_idx}]'].append(_won)
+                success[f'success_rate/{data_source}'].append(_won)
+            else:
+                # Per-episode (non-cumulative) for validation
+                for traj_idx, won in enumerate(wons):
+                    success[f'episode_{traj_idx}/success_rate'].append(won)
+                    success[f'episode_{traj_idx}/success_rate/{data_source}'].append(won)
+                success[f'success_rate'].append(any(wons))
+                success[f'success_rate/{data_source}'].append(any(wons))
 
         return {key: np.array(value) for key, value in success.items()}
 
