@@ -98,7 +98,7 @@ TASKS = [
             "max_turns_per_episode": 3,
             "total_step_cap": 9,
             "inner_env_class": "GEMEnvAdapter",
-            "code_length": 3,
+            # gem library fixes code_length=4; only num_numbers is configurable
             "num_numbers": 6,
             "duplicate_numbers": False,
         },
