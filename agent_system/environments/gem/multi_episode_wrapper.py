@@ -42,6 +42,9 @@ class GEMMultiEpisodeWrapper:
 
         # Different adapters have different constructor signatures
         if inner_cls_name.endswith('GEMEnvAdapter') or 'GEMEnvAdapter' in inner_cls_name:
+            # Pass max_turns so gem games with _is_random logic use fixed config
+            # (e.g., Mastermind-v0-random randomizes when max_turns is None)
+            env_specific_kwargs['max_turns'] = self.max_turns_per_episode
             self.inner_env = inner_cls(env_id=self.env_id, env_kwargs=env_specific_kwargs)
         elif 'RockPaperScissors' in inner_cls_name:
             rps_kwargs = {
