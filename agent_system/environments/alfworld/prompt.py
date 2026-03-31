@@ -2,13 +2,13 @@ ALFWORLD_PLAY_PROMPT = """
 You are an expert agent operating in the ALFRED Embodied Environment.
 {init_observation}{past_trajectories_reflections}{current_trajectory}
 
-Your admissible actions of the current situation are: 
+Your admissible actions of the current situation are:
 [{admissible_actions}]
 
 Now it's your turn to take an action.
 
-- Your response should first by step-by-step reasoning about the current situation.
-- Once you've finished your reasoning, you should choose an admissible action for current step and present it within <action> </action> tags.
+- Your response should first be step-by-step reasoning about the current situation.
+- Once you've finished your reasoning, you should choose an admissible action for the current step and present it as \\boxed{{your action}}.
 """
 
 

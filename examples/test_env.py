@@ -51,7 +51,7 @@ def random_action(obs_list, info_list):
             x, y = random.choice(question_marks)
             actions.append(f"<action>({x}, {y})</action>")
     elif env_name == 'alfworld':
-        actions = ['<action>'+np.random.choice(_info['admissible_commands'])+'</action>' for _info in info_list]
+        actions = [r'\boxed{'+np.random.choice(_info['admissible_commands'])+'}' for _info in info_list]
     elif env_name == 'webshop':
         from agent_system.environments.webshop.webshop.web_agent_site.models.models import RandomPolicy
         policy = RandomPolicy()
