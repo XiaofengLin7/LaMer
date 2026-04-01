@@ -165,7 +165,9 @@ def simulate_game(task_cfg: dict) -> dict:
                 break
 
         # ── Build prompt after some steps (current trajectory) ──────
-        curr_trajs, _ = memory.fetch(history_length=7, obs_length=2)
+        # Use max_turns_per_episode as history/obs length (matches env_manager)
+        max_turns = wrapper.max_turns_per_episode
+        curr_trajs, _ = memory.fetch(history_length=max_turns, obs_length=max_turns)
         prompt_mid = get_gem_prompt(
             phase="play", turn_idx=len(report["steps"]), traj_idx=0,
             game_rules=rules, init_observation=init_obs,
@@ -201,6 +203,21 @@ def simulate_game(task_cfg: dict) -> dict:
         report["final_done"] = report["steps"][-1]["done"] if report["steps"] else False
         report["final_won"] = report["steps"][-1]["won"] if report["steps"] else False
 
+        # ── Verify: no truncation in current episode history ───────
+        import re
+        curr_traj_text = curr_trajs[0]
+        num_steps = len(report["steps"])
+        # Count step labels (e.g. "Action 1:", "Observation 3:") not occurrences in obs text
+        action_labels = len(re.findall(r"^Action \d+:", curr_traj_text, re.MULTILINE))
+        obs_truncated = len(re.findall(r"^Observation \d+: \.\.\.$", curr_traj_text, re.MULTILINE))
+        report["history_check"] = {
+            "steps_taken": num_steps,
+            "actions_in_history": action_labels,
+            "obs_truncated": obs_truncated,
+            "has_truncation": obs_truncated > 0,
+            "max_turns_per_episode": max_turns,
+        }
+
     except Exception as e:
         report["error"] = f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
 
@@ -224,6 +241,14 @@ def print_report(report: dict):
     print(f"  rules length: {report['rules_len']} chars")
     print(f"  total steps taken: {report['total_steps']}")
     print(f"  final done: {report['final_done']}, final won: {report['final_won']}")
+
+    hc = report.get("history_check")
+    if hc:
+        ok = not hc["has_truncation"] and hc["actions_in_history"] == hc["steps_taken"]
+        status = "PASS" if ok else "FAIL"
+        print(f"\n  --- History Check [{status}] ---")
+        print(f"  steps_taken={hc['steps_taken']}, actions_in_history={hc['actions_in_history']}, "
+              f"obs_truncated={hc['obs_truncated']}, max_turns={hc['max_turns_per_episode']}")
 
     print(f"\n  --- Steps ---")
     for i, step in enumerate(report["steps"]):
@@ -261,7 +286,9 @@ def main():
         status = "ERROR" if r["error"] else "OK"
         steps = r.get("total_steps", "?")
         won = r.get("final_won", "?")
-        print(f"  [{status}] {r['name']:25s} steps={steps} won={won}")
+        hc = r.get("history_check", {})
+        hist_ok = "PASS" if (hc and not hc.get("has_truncation") and hc.get("actions_in_history") == hc.get("steps_taken")) else ("FAIL" if hc else "?")
+        print(f"  [{status}] {r['name']:25s} steps={steps} won={won} history={hist_ok}")
 
     if errors:
         print(f"\n  *** {len(errors)} ERRORS: {', '.join(errors)} ***")

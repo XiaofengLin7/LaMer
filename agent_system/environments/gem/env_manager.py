@@ -288,8 +288,11 @@ class GEMEnvironmentManager(EnvironmentManagerBase):
         postprocess_text_obs = []
         assert phase in ['play', 'reflect']
 
-        obs_length = 2 if phase == 'play' else 5
-        history_length = 7 if phase == 'play' else 10
+        # Show full episode history with full observations for all phases.
+        # self.max_turns = max(max_turns_per_episode) across batch, ensuring
+        # every game sees its complete episode without truncation.
+        history_length = self.max_turns
+        obs_length = self.max_turns
         if self.curr_turn_idx == 0:
             curr_trajs = ['' for _ in range(self.num_processes)]
         else:
@@ -298,9 +301,9 @@ class GEMEnvironmentManager(EnvironmentManagerBase):
 
         past_trajs = [{} for _ in range(self.num_processes)]
         for traj_idx in range(self.curr_traj_idx):
-            # Past trajectories use short summaries (obs_length=1)
+            # Past episodes: also show full history with full observations
             trajectories, _ = self.memories[traj_idx].fetch(
-                history_length=history_length, obs_length=1)
+                history_length=history_length, obs_length=obs_length)
             for i in range(self.num_processes):
                 past_trajs[i][traj_idx] = trajectories[i]
 
