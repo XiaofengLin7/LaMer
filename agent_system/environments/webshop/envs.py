@@ -21,7 +21,7 @@ class WebshopWorker:
         from web_agent_site.envs import WebAgentTextEnv  # noqa: WPS433 (runtime import)
         
         env_kwargs['seed'] = seed
-        self.env = gym.make('WebAgentTextEnv-v0', **env_kwargs)
+        self.env = gym.make('WebAgentTextEnv-v0', disable_env_checker=True, **env_kwargs)
     
     def step(self, action):
         """Execute a step in the environment"""
@@ -131,10 +131,11 @@ class WebshopMultiProcessEnv(gym.Env):
         #     self.goal_idxs = range(len(self.env.server.goals))
 
         if not self.is_train:
-            self.goal_idxs = range(500)
+            self.goal_idxs = list(range(500))
+            self._next_goal_idx = 0  # sequential pointer for deterministic eval
         else:
             self.goal_idxs = range(500, len(goals))
-            
+
         print(self.goal_idxs)
 
     # ------------------------------------------------------------------
@@ -165,7 +166,12 @@ class WebshopMultiProcessEnv(gym.Env):
         return obs_list, reward_list, done_list, info_list
 
     def reset(self):
-        idx = self._rng.choice(self.goal_idxs, size=self.env_num, replace=False)
+        if not self.is_train:
+            # Deterministic sequential eval: always cover goals 0,1,2,... in order
+            idx = self.goal_idxs[self._next_goal_idx : self._next_goal_idx + self.env_num]
+            self._next_goal_idx += self.env_num
+        else:
+            idx = self._rng.choice(self.goal_idxs, size=self.env_num, replace=False).tolist()
         idx = np.repeat(idx, self.group_n).tolist()
 
         # Send reset commands to all workers

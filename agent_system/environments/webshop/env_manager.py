@@ -269,8 +269,8 @@ def make_envs(config, val_only=False):
             file_path = os.path.join(os.path.dirname(__file__), 'webshop/data/items_shuffle.json')
             attr_path = os.path.join(os.path.dirname(__file__), 'webshop/data/items_ins_v2.json')
         env_kwargs = {
-                    'observation_mode': 'text', 
-                    'num_products': None, 
+                    'observation_mode': 'text',
+                    'num_products': 1000 if config.env.webshop.use_small else None,
                     'human_goals': config.env.webshop.human_goals,
                     'file_path': file_path,
                     'attr_path': attr_path
