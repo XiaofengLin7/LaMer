@@ -56,7 +56,7 @@ def parse_reflection(traj_idx, past_traj, reflection, reflection_type='reflectio
     else:
         memories = []
         for _idx in range(traj_idx):
-            if reflection_type == 'reflection_and_history':
+            if reflection_type in ('reflection_and_history', 'history_and_reflection'):
                 memory = PAST_EXPERIENCE_REFLECTION_TEMPLATE.format(
                     traj_idx=_idx + 1,
                     past_trajectory=past_traj[_idx],
