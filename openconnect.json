@@ -1,0 +1,120 @@
+{
+    "idev": {
+        "registration": {
+            "project": "lamer-${USER}-project",
+            "domain": "development",
+            "workflow_src": "src/lamer_eval/workflows/workflow.py",
+            "additional_sources": [],
+            "resources": [
+                "."
+            ],
+            "images": [],
+            "crew_id": 12350
+        },
+        "executions": [
+            {
+                "name": "default",
+                "workflow_name": "lamer_eval.workflows.workflow.interactive_dev_workflow"
+            }
+        ]
+    },
+    "lamer-eval": {
+        "registration": {
+            "project": "lamer-${USER}-project",
+            "domain": "development",
+            "workflow_src": "src/lamer_eval/workflows/workflow.py",
+            "additional_sources": [],
+            "resources": [
+                "."
+            ],
+            "images": [],
+            "crew_id": 12350
+        },
+        "executions": [
+            {
+                "name": "eval_alfworld",
+                "workflow_name": "lamer_eval.workflows.workflow.lamer_eval_alfworld_workflow"
+            },
+            {
+                "name": "eval_alfworld_history_only",
+                "workflow_name": "lamer_eval.workflows.workflow.lamer_eval_alfworld_history_only_workflow"
+            },
+            {
+                "name": "eval_alfworld_history_and_reflection",
+                "workflow_name": "lamer_eval.workflows.workflow.lamer_eval_alfworld_history_and_reflection_workflow"
+            },
+            {
+                "name": "eval_alfworld_base_reflection_only",
+                "workflow_name": "lamer_eval.workflows.workflow.lamer_eval_alfworld_base_reflection_only_workflow"
+            },
+            {
+                "name": "eval_alfworld_base_history_only",
+                "workflow_name": "lamer_eval.workflows.workflow.lamer_eval_alfworld_base_history_only_workflow"
+            },
+            {
+                "name": "eval_alfworld_base_history_and_reflection",
+                "workflow_name": "lamer_eval.workflows.workflow.lamer_eval_alfworld_base_history_and_reflection_workflow"
+            },
+            {
+                "name": "eval_webshop",
+                "workflow_name": "lamer_eval.workflows.workflow.lamer_eval_webshop_workflow"
+            },
+            {
+                "name": "eval_webshop_history_only",
+                "workflow_name": "lamer_eval.workflows.workflow.lamer_eval_webshop_history_only_workflow"
+            },
+            {
+                "name": "eval_webshop_history_and_reflection",
+                "workflow_name": "lamer_eval.workflows.workflow.lamer_eval_webshop_history_and_reflection_workflow"
+            },
+            {
+                "name": "eval_webshop_base_reflection_only",
+                "workflow_name": "lamer_eval.workflows.workflow.lamer_eval_webshop_base_reflection_only_workflow"
+            },
+            {
+                "name": "eval_webshop_base_history_only",
+                "workflow_name": "lamer_eval.workflows.workflow.lamer_eval_webshop_base_history_only_workflow"
+            },
+            {
+                "name": "eval_webshop_base_history_and_reflection",
+                "workflow_name": "lamer_eval.workflows.workflow.lamer_eval_webshop_base_history_and_reflection_workflow"
+            },
+            {
+                "name": "eval_alfworld_grpo_reflect_only",
+                "workflow_name": "lamer_eval.workflows.workflow.lamer_eval_alfworld_grpo_reflect_only_workflow"
+            },
+            {
+                "name": "eval_alfworld_gigpo_har",
+                "workflow_name": "lamer_eval.workflows.workflow.lamer_eval_alfworld_gigpo_har_workflow"
+            },
+            {
+                "name": "eval_alfworld_gigpo_reflect_only",
+                "workflow_name": "lamer_eval.workflows.workflow.lamer_eval_alfworld_gigpo_reflect_only_workflow"
+            },
+            {
+                "name": "eval_webshop_grpo_reflect_only",
+                "workflow_name": "lamer_eval.workflows.workflow.lamer_eval_webshop_grpo_reflect_only_workflow"
+            },
+            {
+                "name": "eval_webshop_gigpo_har",
+                "workflow_name": "lamer_eval.workflows.workflow.lamer_eval_webshop_gigpo_har_workflow"
+            },
+            {
+                "name": "eval_webshop_gigpo_reflect_only",
+                "workflow_name": "lamer_eval.workflows.workflow.lamer_eval_webshop_gigpo_reflect_only_workflow"
+            },
+            {
+                "name": "gem_multi_task_history_and_reflection",
+                "workflow_name": "lamer_eval.workflows.workflow.lamer_gem_multi_task_history_and_reflection_workflow"
+            },
+            {
+                "name": "gem_multi_task_history_only",
+                "workflow_name": "lamer_eval.workflows.workflow.lamer_gem_multi_task_history_only_workflow"
+            },
+            {
+                "name": "gem_multi_task_reflection_only",
+                "workflow_name": "lamer_eval.workflows.workflow.lamer_gem_multi_task_reflection_only_workflow"
+            }
+        ]
+    }
+}
