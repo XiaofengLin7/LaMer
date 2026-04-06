@@ -313,7 +313,7 @@ def make_envs(config):
             'eval_dataset': config.env.alfworld.get('eval_dataset', 'eval_all'), # 'eval_in_distribution' or 'eval_out_of_distribution' or 'eval_all'
         }
         _envs = build_alfworld_envs(alf_config_path, config.env.seed, config.data.train_batch_size, group_n, is_train=True, env_kwargs=env_kwargs)
-        _val_envs = build_alfworld_envs(alf_config_path, config.env.seed + 1000, config.data.val_batch_size, 1, is_train=False, env_kwargs=env_kwargs)
+        _val_envs = build_alfworld_envs(alf_config_path, config.env.seed + 1000, config.data.val_batch_size, group_n, is_train=False, env_kwargs=env_kwargs)
         
         num_attempts = config.env.get('num_attempts', 1)
         do_reflection = config.env.get('do_reflection', True)
