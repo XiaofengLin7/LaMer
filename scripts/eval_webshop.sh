@@ -80,7 +80,8 @@ TP_SIZE=1
 # ── Eval data: create minimal dummy parquets if not present ──────────────────
 REFLECTION_TYPE=${REFLECTION_TYPE:-reflection_only}
 TRAIN_DATA_SIZE=8
-VAL_DATA_SIZE=100  # total eval episodes (must be divisible by VAL_BATCH_SIZE)
+VAL_BATCH_SIZE=${VAL_BATCH_SIZE:-4}    # parallel webshop workers per batch (must be divisible by n_gpus=4)
+VAL_DATA_SIZE=${VAL_DATA_SIZE:-100}     # total eval episodes (must be divisible by VAL_BATCH_SIZE)
 DATA_DIR="${HOME}/data/verl-agent/text"
 mkdir -p "${DATA_DIR}"
 python3 - <<EOF
@@ -98,7 +99,7 @@ print("Created dummy scaffold data: train=${TRAIN_DATA_SIZE} test=${VAL_DATA_SIZ
 EOF
 
 # ── Experiment name ───────────────────────────────────────────────────────────
-EXPERIMENT_NAME="lamer-eval-webshop-${FLYTE_INTERNAL_EXECUTION_ID:-local}"
+EXPERIMENT_NAME="lamer-eval-webshop-${REFLECTION_TYPE}-${FLYTE_INTERNAL_EXECUTION_ID:-local}"
 
 # ── Run evaluation (val_before_train=True, total_epochs=0 → validation only) ─
 python3 -m verl.trainer.main_ppo \
@@ -141,7 +142,7 @@ python3 -m verl.trainer.main_ppo \
     env.webshop.human_goals=True \
     +env.reflection_type="${REFLECTION_TYPE}" \
     env.seed=0 \
-    env.rollout.n=1 \
+    env.rollout.n=4 \
     env.num_attempts=3 \
     env.max_steps=40 \
     env.max_turns=12 \
@@ -154,4 +155,6 @@ python3 -m verl.trainer.main_ppo \
     trainer.nnodes=1 \
     trainer.val_before_train=True \
     trainer.total_epochs=0 \
-    trainer.log_val_generations=1
+    trainer.log_val_generations=100 \
+    trainer.default_local_dir=/shared/public/sharing/sirzhu/eval_webshop/${EXPERIMENT_NAME}
+

@@ -126,5 +126,6 @@ python3 -m verl.trainer.main_ppo \
     trainer.nnodes=1 \
     trainer.val_before_train=True \
     trainer.total_epochs=0 \
-    trainer.default_local_dir=/shared/public/sharing/sirzhu/eval_alfworld/${EXPERIMENT_NAME} \
+    trainer.log_val_generations=134 \
+    trainer.default_local_dir=/shared/public/sharing/sirzhu/eval_alfworld/${EXPERIMENT_NAME}
 

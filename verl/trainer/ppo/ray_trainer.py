@@ -605,7 +605,7 @@ class RayPPOTrainer:
         val_batch_size = self.config.data.val_batch_size  # Prefer config value if set
         if val_batch_size is None:
             val_batch_size = len(self.val_dataset)
-
+        print("===debug===", len(self.val_dataset))
         self.val_dataloader = StatefulDataLoader(
             dataset=self.val_dataset,
             batch_size=val_batch_size,
@@ -687,13 +687,23 @@ class RayPPOTrainer:
     def _maybe_log_val_trajectory(self, traj_cot_logs):
         """ Log validation trajectory """
         generations_to_log = self.config.trainer.log_val_generations
-            
+
         print('#### Trajectory CoT logging ####')
         for idx in range(generations_to_log):
             traj_cot_log = traj_cot_logs[idx]
             # print trajectory
             for k, v in traj_cot_log.items():
                 print(f'\n[{k}]\n{v}')
+
+        # Save all trajectories to disk
+        if hasattr(self.config.trainer, 'default_local_dir') and self.config.trainer.default_local_dir:
+            dump_path = self.config.trainer.default_local_dir
+            os.makedirs(dump_path, exist_ok=True)
+            filename = os.path.join(dump_path, f"val_trajectories_step_{self.global_steps}.jsonl")
+            with open(filename, 'w') as f:
+                for traj_cot_log in traj_cot_logs:
+                    f.write(json.dumps(traj_cot_log, ensure_ascii=False) + '\n')
+            print(f"Saved {len(traj_cot_logs)} trajectories to {filename}")
 
         if 'wandb' in self.config.trainer.logger:
             import wandb
@@ -1178,11 +1188,14 @@ class RayPPOTrainer:
                             rollout_probs_diff_max = torch.max(rollout_probs_diff)
                             rollout_probs_diff_mean = torch.mean(rollout_probs_diff)
                             rollout_probs_diff_std = torch.std(rollout_probs_diff)
+                            rollout_probs_masked = torch.masked_select(rollout_probs, response_mask.bool())
+                            rollout_probs_mean = torch.mean(rollout_probs_masked)
                             metrics.update(
                                 {
                                     "training/rollout_probs_diff_max": rollout_probs_diff_max.detach().item(),
                                     "training/rollout_probs_diff_mean": rollout_probs_diff_mean.detach().item(),
                                     "training/rollout_probs_diff_std": rollout_probs_diff_std.detach().item(),
+                                    "training/rollout_probs_mean": rollout_probs_mean.detach().item(),
                                 }
                             )
 
