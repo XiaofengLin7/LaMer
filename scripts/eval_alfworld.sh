@@ -41,7 +41,7 @@ TP_SIZE=1
 # The env provides real observations; geometry3k data is only used as scaffolding
 # for verl's data loader (the actual prompts come from ALFWorld env).
 TRAIN_DATA_SIZE=8
-VAL_DATA_SIZE=${VAL_BATCH_SIZE:-134}
+VAL_BATCH_SIZE=${VAL_BATCH_SIZE:-134}
 DATA_DIR="${HOME}/data/verl-agent/text"
 mkdir -p "${DATA_DIR}"
 python3 - <<EOF
@@ -54,8 +54,8 @@ def make_rows(split, n):
              "ability": "agent",
              "extra_info": {"split": split, "index": i}} for i in range(n)]
 pd.DataFrame(make_rows("train", ${TRAIN_DATA_SIZE})).to_parquet(os.path.join(data_dir, "train.parquet"))
-pd.DataFrame(make_rows("test", ${VAL_DATA_SIZE})).to_parquet(os.path.join(data_dir, "test.parquet"))
-print(f"Created dummy scaffold data: train={${TRAIN_DATA_SIZE}}, test={${VAL_DATA_SIZE}}")
+pd.DataFrame(make_rows("test", ${VAL_BATCH_SIZE})).to_parquet(os.path.join(data_dir, "test.parquet"))
+print(f"Created dummy scaffold data: train={${TRAIN_DATA_SIZE}}, test={${VAL_BATCH_SIZE}}")
 EOF
 
 # ── Reflection type: reflection_only | history_only | history_and_reflection ──
@@ -66,7 +66,7 @@ echo "  eval_alfworld.sh args from workflow"
 echo "=========================================="
 echo "  MODEL_PATH:       ${MODEL_PATH}"
 echo "  GPUS:             ${GPUS}"
-echo "  VAL_BATCH_SIZE:   ${VAL_DATA_SIZE}"
+echo "  VAL_BATCH_SIZE:   ${VAL_BATCH_SIZE}"
 echo "  REFLECTION_TYPE:  ${REFLECTION_TYPE}"
 echo "  ALFWORLD_DATA:    ${ALFWORLD_DATA}"
 echo "=========================================="
@@ -80,7 +80,7 @@ python3 -m verl.trainer.main_ppo \
     data.train_files="${DATA_DIR}/train.parquet" \
     data.val_files="${DATA_DIR}/test.parquet" \
     data.train_batch_size=${TRAIN_DATA_SIZE} \
-    data.val_batch_size=${VAL_DATA_SIZE} \
+    data.val_batch_size=${VAL_BATCH_SIZE} \
     data.max_prompt_length=7168 \
     data.max_response_length=1024 \
     data.filter_overlong_prompts=True \

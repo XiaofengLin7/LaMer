@@ -79,9 +79,9 @@ TP_SIZE=1
 
 # ── Eval data: create minimal dummy parquets if not present ──────────────────
 REFLECTION_TYPE=${REFLECTION_TYPE:-reflection_only}
-TRAIN_DATA_SIZE=8
-VAL_BATCH_SIZE=${VAL_BATCH_SIZE:-4}    # parallel webshop workers per batch (must be divisible by n_gpus=4)
-VAL_DATA_SIZE=${VAL_DATA_SIZE:-100}     # total eval episodes (must be divisible by VAL_BATCH_SIZE)
+TRAIN_BATCH_SIZE=8
+VAL_BATCH_SIZE=${VAL_BATCH_SIZE:-20}   # parallel workers (memory constraint: each loads full catalog)
+VAL_TOTAL_SIZE=${VAL_TOTAL_SIZE:-100}  # total evaluations; must be a multiple of VAL_BATCH_SIZE
 DATA_DIR="${HOME}/data/verl-agent/text"
 mkdir -p "${DATA_DIR}"
 python3 - <<EOF
@@ -93,9 +93,9 @@ def make_rows(split, n):
              "prompt": [{"role": "user", "content": ""}],
              "ability": "agent",
              "extra_info": {"split": split, "index": i}} for i in range(n)]
-pd.DataFrame(make_rows("train", ${TRAIN_DATA_SIZE})).to_parquet(os.path.join(data_dir, "train.parquet"))
-pd.DataFrame(make_rows("test", ${VAL_DATA_SIZE})).to_parquet(os.path.join(data_dir, "test.parquet"))
-print("Created dummy scaffold data: train=${TRAIN_DATA_SIZE} test=${VAL_DATA_SIZE} at", data_dir)
+pd.DataFrame(make_rows("train", ${TRAIN_BATCH_SIZE})).to_parquet(os.path.join(data_dir, "train.parquet"))
+pd.DataFrame(make_rows("test", ${VAL_TOTAL_SIZE})).to_parquet(os.path.join(data_dir, "test.parquet"))
+print("Created dummy scaffold data: train=${TRAIN_BATCH_SIZE} test=${VAL_TOTAL_SIZE} at", data_dir)
 EOF
 
 # ── Experiment name ───────────────────────────────────────────────────────────
@@ -106,7 +106,7 @@ python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
     data.train_files="${DATA_DIR}/train.parquet" \
     data.val_files="${DATA_DIR}/test.parquet" \
-    data.train_batch_size=${TRAIN_DATA_SIZE} \
+    data.train_batch_size=${TRAIN_BATCH_SIZE} \
     data.val_batch_size=${VAL_BATCH_SIZE} \
     data.max_prompt_length=16384 \
     data.max_response_length=1024 \

@@ -50,10 +50,14 @@ REFLECTION_ONLY_TEMPLATE = '''
 On trial #{traj_idx}, the task is NOT successfully completed. Your reflection is:
 {reflection}'''
 
+import logging as _logging
+_prompt_logger = _logging.getLogger(__name__)
+
 def parse_reflection(traj_idx, past_traj, reflection, reflection_type='reflection_only'):
     if traj_idx == 0 or len(reflection) == 0:
         return '\n'
     else:
+        _prompt_logger.info(f'[prompt] reflection_type={reflection_type!r} | traj_idx={traj_idx} | template={"PAST_TRAJECTORY_AND_REFLECTION_TEMPLATE" if reflection_type == "history_and_reflection" else "HISTORY_ONLY_TEMPLATE" if reflection_type == "history_only" else "REFLECTION_ONLY_TEMPLATE"}')
         memories = []
         for _idx in range(traj_idx):
             if reflection_type == 'history_and_reflection':

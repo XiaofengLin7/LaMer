@@ -177,7 +177,8 @@ def compute_data_metrics(batch: DataProto, use_critic: bool = True) -> Dict[str,
             batch.non_tensor_batch["episode_lengths_max"][0].item(),
         "episode/length/min": 
             batch.non_tensor_batch["episode_lengths_min"][0].item(),
-        **({f"episode/{k}": v[0].item() for k, v in batch.non_tensor_batch.items() if "success_rate" in k}),
+        **({f"episode/{k.replace('|', '_').replace('[', '_').replace(']', '').replace(':', '_')}": v[0].item()
+            for k, v in batch.non_tensor_batch.items() if "success_rate" in k}),
     }
     return metrics
 

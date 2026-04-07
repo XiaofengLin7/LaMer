@@ -282,6 +282,7 @@ def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, step_gamma=0.95
             )    
     elif adv_estimator == AdvantageEstimator.GRPO:
         # TODO: test on more adv estimator type
+        print("[compute_advantage] Using GRPO advantage estimator")
         grpo_calculation_mask = data.batch["response_mask"]
         if multi_turn:
             # If multi-turn, replace the mask with the relevant part of loss_mask
@@ -695,15 +696,16 @@ class RayPPOTrainer:
             for k, v in traj_cot_log.items():
                 print(f'\n[{k}]\n{v}')
 
-        # Save all trajectories to disk
-        if hasattr(self.config.trainer, 'default_local_dir') and self.config.trainer.default_local_dir:
-            dump_path = self.config.trainer.default_local_dir
-            os.makedirs(dump_path, exist_ok=True)
-            filename = os.path.join(dump_path, f"val_trajectories_step_{self.global_steps}.jsonl")
-            with open(filename, 'w') as f:
-                for traj_cot_log in traj_cot_logs:
-                    f.write(json.dumps(traj_cot_log, ensure_ascii=False) + '\n')
-            print(f"Saved {len(traj_cot_logs)} trajectories to {filename}")
+        # Save all trajectories to JSONL under default_local_dir
+        import json
+        traj_dir = self.config.trainer.default_local_dir
+        os.makedirs(traj_dir, exist_ok=True)
+        traj_path = os.path.join(traj_dir, f'val_trajectories_step_{self.global_steps}.jsonl')
+        with open(traj_path, 'w') as f:
+            for idx, traj_cot_log in enumerate(traj_cot_logs):
+                record = {'idx': idx, **traj_cot_log}
+                f.write(json.dumps(record) + '\n')
+        print(f'[val] Saved {len(traj_cot_logs)} trajectories to {traj_path}')
 
         if 'wandb' in self.config.trainer.logger:
             import wandb
@@ -835,10 +837,13 @@ class RayPPOTrainer:
 
         metric_dict = {}
         for data_source, rewards in data_source_reward.items():
-            metric_dict[f'val/test_score/{data_source}'] = np.mean(rewards)
+            safe_ds = data_source.replace('|', '_').replace('[', '_').replace(']', '').replace(':', '_')
+            metric_dict[f'val/test_score/{safe_ds}'] = np.mean(rewards)
 
         for k, v in success_rate.items():
-            metric_dict[f'val/{k}'] = v
+            # Sanitize key: MLflow forbids '|' and '['/']' in metric names.
+            safe_k = k.replace('|', '_').replace('[', '_').replace(']', '').replace(':', '_')
+            metric_dict[f'val/{safe_k}'] = v
 
         print(metric_dict)
         return metric_dict
