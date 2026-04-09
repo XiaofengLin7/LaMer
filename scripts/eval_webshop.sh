@@ -80,7 +80,7 @@ TP_SIZE=1
 # ── Eval data: create minimal dummy parquets if not present ──────────────────
 REFLECTION_TYPE=${REFLECTION_TYPE:-reflection_only}
 TRAIN_BATCH_SIZE=8
-VAL_BATCH_SIZE=${VAL_BATCH_SIZE:-20}   # parallel workers (memory constraint: each loads full catalog)
+VAL_BATCH_SIZE=${VAL_BATCH_SIZE:-4}   # parallel workers (memory constraint: each loads full catalog)
 VAL_TOTAL_SIZE=${VAL_TOTAL_SIZE:-100}  # total evaluations; must be a multiple of VAL_BATCH_SIZE
 DATA_DIR="${HOME}/data/verl-agent/text"
 mkdir -p "${DATA_DIR}"
@@ -137,15 +137,16 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.max_num_batched_tokens=32768 \
     actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=32 \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
+    actor_rollout_ref.actor.use_invalid_action_penalty=False \
     env.env_name=Webshop \
     env.webshop.use_small=False \
     env.webshop.human_goals=True \
     +env.reflection_type="${REFLECTION_TYPE}" \
     env.seed=0 \
-    env.rollout.n=4 \
+    env.rollout.n=1 \
     env.num_attempts=3 \
-    env.max_steps=40 \
-    env.max_turns=12 \
+    env.max_steps=30 \
+    env.max_turns=10 \
     reward_model.reward_manager=episode \
     trainer.critic_warmup=0 \
     trainer.logger=['console','mlflow'] \
@@ -155,6 +156,6 @@ python3 -m verl.trainer.main_ppo \
     trainer.nnodes=1 \
     trainer.val_before_train=True \
     trainer.total_epochs=0 \
-    trainer.log_val_generations=100 \
+    trainer.log_val_generations=${VAL_TOTAL_SIZE} \
     trainer.default_local_dir=/shared/public/sharing/sirzhu/eval_webshop/${EXPERIMENT_NAME}
 

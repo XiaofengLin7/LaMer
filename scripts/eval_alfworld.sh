@@ -109,10 +109,11 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.val_kwargs.do_sample=True \
     actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=16 \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
+    actor_rollout_ref.actor.use_invalid_action_penalty=False \
     env.env_name="alfworld/AlfredTWEnv" \
     env.alfworld.eval_dataset=eval_out_of_distribution \
     env.seed=0 \
-    env.rollout.n=4 \
+    env.rollout.n=1 \
     env.num_attempts=3 \
     env.max_steps=30 \
     env.max_turns=10 \
@@ -126,6 +127,6 @@ python3 -m verl.trainer.main_ppo \
     trainer.nnodes=1 \
     trainer.val_before_train=True \
     trainer.total_epochs=0 \
-    trainer.log_val_generations=134 \
+    trainer.log_val_generations=1 \
     trainer.default_local_dir=/shared/public/sharing/sirzhu/eval_alfworld/${EXPERIMENT_NAME}
 

@@ -19,12 +19,23 @@ class WebshopWorker:
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), 'webshop'))
         sys.path.append(project_root)
         from web_agent_site.envs import WebAgentTextEnv  # noqa: WPS433 (runtime import)
-        
+
         env_kwargs['seed'] = seed
         self.env = gym.make('WebAgentTextEnv-v0', disable_env_checker=True, **env_kwargs)
-    
+        self._initial_session = None
+        self._is_done = False
+        self._terminal_obs = None
+        self._terminal_info = None
+
     def step(self, action):
         """Execute a step in the environment"""
+        # After terminal, the rollout loop may still call step() for this worker
+        # (active_masks only gates total_batch_list, not envs.step). Guard against
+        # WebShop auto-resetting to a new task on post-terminal steps.
+        if self._is_done:
+            print(f"[WebshopWorker] post-terminal step blocked (session={self._initial_session}), returning frozen obs")
+            return self._terminal_obs, 0, True, self._terminal_info
+
         obs, reward, done, info = self.env.step(action)
         info = dict(info or {})  # make a *copy* so we can mutate safely
         info['available_actions'] = self.env.get_available_actions()
@@ -38,18 +49,34 @@ class WebshopWorker:
             info['won'] = False
             reward = 0
 
+        if done:
+            self._is_done = True
+            self._terminal_obs = obs
+            self._terminal_info = dict(info)
+
         return obs, reward, done, info
-    
+
     def reset(self, idx):
         """Reset the environment with given session index"""
+        self._initial_session = idx
+        self._is_done = False
+        self._terminal_obs = None
+        self._terminal_info = None
         obs, info = self.env.reset(session=idx)
         info = dict(info or {})
         info['available_actions'] = self.env.get_available_actions()
         info['won'] = False
         return obs, info
-    
+
     def restart(self):
-        obs, info = self.env.reset(session=self.env.session)
+        self._is_done = False
+        self._terminal_obs = None
+        self._terminal_info = None
+        # Use the saved session from reset() — self.env.session may have drifted
+        # if WebShop auto-reset to a new task during post-terminal steps.
+        session = self._initial_session if self._initial_session is not None else self.env.session
+        print(f"[WebshopWorker.restart] session={session} (env.session={self.env.session})")
+        obs, info = self.env.reset(session=session)
         info = dict(info or {})
         info['available_actions'] = self.env.get_available_actions()
         info['won'] = False
