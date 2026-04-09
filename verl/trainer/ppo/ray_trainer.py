@@ -282,6 +282,7 @@ def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, step_gamma=0.95
             )    
     elif adv_estimator == AdvantageEstimator.GRPO:
         # TODO: test on more adv estimator type
+        print("[compute_advantage] Using GRPO advantage estimator")
         grpo_calculation_mask = data.batch["response_mask"]
         if multi_turn:
             # If multi-turn, replace the mask with the relevant part of loss_mask
@@ -605,7 +606,7 @@ class RayPPOTrainer:
         val_batch_size = self.config.data.val_batch_size  # Prefer config value if set
         if val_batch_size is None:
             val_batch_size = len(self.val_dataset)
-
+        print("===debug===", len(self.val_dataset))
         self.val_dataloader = StatefulDataLoader(
             dataset=self.val_dataset,
             batch_size=val_batch_size,
@@ -687,13 +688,24 @@ class RayPPOTrainer:
     def _maybe_log_val_trajectory(self, traj_cot_logs):
         """ Log validation trajectory """
         generations_to_log = self.config.trainer.log_val_generations
-            
+
         print('#### Trajectory CoT logging ####')
         for idx in range(generations_to_log):
             traj_cot_log = traj_cot_logs[idx]
             # print trajectory
             for k, v in traj_cot_log.items():
                 print(f'\n[{k}]\n{v}')
+
+        # Save all trajectories to JSONL under default_local_dir
+        import json
+        traj_dir = self.config.trainer.default_local_dir
+        os.makedirs(traj_dir, exist_ok=True)
+        traj_path = os.path.join(traj_dir, f'val_trajectories_step_{self.global_steps}.jsonl')
+        with open(traj_path, 'w') as f:
+            for idx, traj_cot_log in enumerate(traj_cot_logs):
+                record = {'idx': idx, **traj_cot_log}
+                f.write(json.dumps(record) + '\n')
+        print(f'[val] Saved {len(traj_cot_logs)} trajectories to {traj_path}')
 
         if 'wandb' in self.config.trainer.logger:
             import wandb
@@ -825,10 +837,13 @@ class RayPPOTrainer:
 
         metric_dict = {}
         for data_source, rewards in data_source_reward.items():
-            metric_dict[f'val/test_score/{data_source}'] = np.mean(rewards)
+            safe_ds = data_source.replace('|', '_').replace('[', '_').replace(']', '').replace(':', '_')
+            metric_dict[f'val/test_score/{safe_ds}'] = np.mean(rewards)
 
         for k, v in success_rate.items():
-            metric_dict[f'val/{k}'] = v
+            # Sanitize key: MLflow forbids '|' and '['/']' in metric names.
+            safe_k = k.replace('|', '_').replace('[', '_').replace(']', '').replace(':', '_')
+            metric_dict[f'val/{safe_k}'] = v
 
         print(metric_dict)
         return metric_dict
@@ -1178,11 +1193,14 @@ class RayPPOTrainer:
                             rollout_probs_diff_max = torch.max(rollout_probs_diff)
                             rollout_probs_diff_mean = torch.mean(rollout_probs_diff)
                             rollout_probs_diff_std = torch.std(rollout_probs_diff)
+                            rollout_probs_masked = torch.masked_select(rollout_probs, response_mask.bool())
+                            rollout_probs_mean = torch.mean(rollout_probs_masked)
                             metrics.update(
                                 {
                                     "training/rollout_probs_diff_max": rollout_probs_diff_max.detach().item(),
                                     "training/rollout_probs_diff_mean": rollout_probs_diff_mean.detach().item(),
                                     "training/rollout_probs_diff_std": rollout_probs_diff_std.detach().item(),
+                                    "training/rollout_probs_mean": rollout_probs_mean.detach().item(),
                                 }
                             )
 

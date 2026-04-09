@@ -53,6 +53,7 @@ class WebshopEnvironmentManager(EnvironmentManagerBase):
         self.reflections = [{} for _ in range(self.num_processes)]
         self.curr_turn_idx = 0
         self.curr_traj_idx = 0
+        self._traj_done = np.zeros(self.num_processes, dtype=bool)
         
         admissible_actions = [info['available_actions'] for info in infos]
         observations = {'text': self.build_text_obs(admissible_actions, phase='play'), 
@@ -81,6 +82,7 @@ class WebshopEnvironmentManager(EnvironmentManagerBase):
         obs, infos = self.envs.restart()
         self.curr_traj_idx += 1
         self.curr_turn_idx = 0 # [0 for _ in range(self.num_processes)]
+        self._traj_done = np.zeros(self.num_processes, dtype=bool)
         
         admissible_actions = [info['available_actions'] for info in infos]
         observations = {
@@ -120,21 +122,25 @@ class WebshopEnvironmentManager(EnvironmentManagerBase):
 
         else:
             actions, valids = self.projection_f(text_actions, phase='play')
+            # Capture which workers were active before this step
+            active_before = ~self._traj_done
             text_obs, rewards, dones, infos = self.envs.step(actions)
-            
+            # Update done state for this trajectory
+            self._traj_done = np.logical_or(self._traj_done, np.array(dones, dtype=bool))
+
             # add action_valid to infos
             for i, info in enumerate(infos):
                 info['is_action_valid'] = to_numpy(valids[i])
-            
+
             self.curr_turn_idx += 1
             text_obs = self.format_obs(text_obs)
             self.memories[self.curr_traj_idx].store({
-                'text_obs': text_obs, 
-                'action': actions, 
+                'text_obs': text_obs,
+                'action': actions,
                 'reward': rewards,
                 'dones': dones,
                 'won': [info['won'] for info in infos]
-            })
+            }, active_mask=active_before)
 
             admissible_actions = [info['available_actions'] for info in infos]
             next_observations = {
@@ -261,6 +267,8 @@ def make_envs(config, val_only=False):
     if not isinstance(config.env.rollout.n, int):
         raise ValueError("config.env.rollout.n should be an integer")
     group_n = config.env.rollout.n if config.env.rollout.n > 0 else 1
+    is_eval_only = config.trainer.get('total_epochs', 1) == 0
+    train_group_n = 1 if is_eval_only else group_n
     if "webshop" in config.env.env_name.lower():
         if config.env.webshop.use_small:
             file_path = os.path.join(os.path.dirname(__file__), 'webshop/data/items_shuffle_1000.json')
@@ -275,8 +283,8 @@ def make_envs(config, val_only=False):
                     'file_path': file_path,
                     'attr_path': attr_path
                     }
-        _envs = build_webshop_envs(seed=config.env.seed, env_num=config.data.train_batch_size, group_n=group_n, is_train=True, env_kwargs=env_kwargs) # , resources_per_worker=resources_per_worker)
-        _val_envs = build_webshop_envs(seed=config.env.seed + 1000, env_num=config.data.val_batch_size, group_n=1, is_train=False, env_kwargs=env_kwargs) # , resources_per_worker=resources_per_worker)
+        _envs = build_webshop_envs(seed=config.env.seed, env_num=config.data.train_batch_size, group_n=train_group_n, is_train=True, env_kwargs=env_kwargs) # , resources_per_worker=resources_per_worker)
+        _val_envs = build_webshop_envs(seed=config.env.seed + 1000, env_num=config.data.val_batch_size, group_n=group_n, is_train=False, env_kwargs=env_kwargs) # , resources_per_worker=resources_per_worker)
 
         num_attempts = config.env.get('num_attempts', 1)
         do_reflection = config.env.get('do_reflection', True)
@@ -291,7 +299,7 @@ def make_envs(config, val_only=False):
             envs = WebshopEnvironmentManager(_envs, projection_f, num_attempts, do_reflection, config)
         val_envs = WebshopEnvironmentManager(_val_envs, projection_f, val_num_attempts, val_do_reflection, config)
         import time
-        time.sleep((config.data.train_batch_size * group_n + config.data.val_batch_size) * 0.1) # wait for the envs to be ready
+        time.sleep((config.data.train_batch_size * train_group_n + config.data.val_batch_size) * 0.1) # wait for the envs to be ready
         return envs, val_envs
 
     else:

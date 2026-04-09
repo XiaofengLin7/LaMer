@@ -439,6 +439,11 @@ class TrajectoryCollector:
                                 batch_list[i].non_tensor_batch['extra.gamefiles'] = infos[i]['extra.gamefiles']
                             except:
                                 pass
+                        elif 'webshop' in self.config.env.env_name.lower():
+                            try:
+                                batch_list[i].non_tensor_batch['task_description'] = envs.tasks[i]
+                            except:
+                                pass
                         total_batch_list[i].append(batch_list[i])
                         total_infos[i].append(infos[i])
 
@@ -527,17 +532,26 @@ class TrajectoryCollector:
         '''
         traj_cot_logs = []
         for traj_batch in total_batch_list:
-            cot_log = {'reward': [0 for _ in range(num_attempts)], 'trajectory': ''}
+            cot_log = {'task_id': '', 'reward': [0 for _ in range(num_attempts)], 'trajectory': ''}
             action_idx = 0
             phase = ''
             for i, step in enumerate(traj_batch):
-                # ignore system prompt  
+                # ignore system prompt
                 input_text = self.tokenizer.decode(step['input_ids'], skip_special_tokens=True).replace("You are Qwen, created by Alibaba Cloud. You are a helpful assistant", "").split('assistant')[0]
-                text_action = self.tokenizer.decode(step['responses'], skip_special_tokens=True) 
-            
+                text_action = self.tokenizer.decode(step['responses'], skip_special_tokens=True)
+
                 if step['phase'] != phase:
                     phase = step['phase']
                     action_idx = 0
+
+                # extract task_id from gamefile path (alfworld) or task description (webshop)
+                if not cot_log['task_id']:
+                    if 'extra.gamefiles' in step:
+                        gamefile = step['extra.gamefiles']
+                        if gamefile:
+                            cot_log['task_id'] = gamefile if isinstance(gamefile, str) else str(gamefile)
+                    elif 'task_description' in step:
+                        cot_log['task_id'] = str(step['task_description'])
 
                 if step['active_masks']:
                     cot_log['trajectory'] += f"\n#### Phase {step['phase']}, step {action_idx} #### \n"

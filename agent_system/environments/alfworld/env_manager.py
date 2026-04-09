@@ -301,6 +301,8 @@ def make_envs(config):
     if not isinstance(config.env.rollout.n, int):
         raise ValueError("config.env.rollout.n should be an integer")
     group_n = config.env.rollout.n if config.env.rollout.n > 0 else 1
+    is_eval_only = config.trainer.get('total_epochs', 1) == 0
+    train_group_n = 1 if is_eval_only else group_n
     if "alfworld" in config.env.env_name.lower():
         if config.env.env_name == 'alfworld/AlfredThorEnv':
             alf_config_path = os.path.join(os.path.dirname(__file__), 'configs/config_tw.yaml')
@@ -312,7 +314,7 @@ def make_envs(config):
         env_kwargs = {
             'eval_dataset': config.env.alfworld.get('eval_dataset', 'eval_all'), # 'eval_in_distribution' or 'eval_out_of_distribution' or 'eval_all'
         }
-        _envs = build_alfworld_envs(alf_config_path, config.env.seed, config.data.train_batch_size, group_n, is_train=True, env_kwargs=env_kwargs)
+        _envs = build_alfworld_envs(alf_config_path, config.env.seed, config.data.train_batch_size, train_group_n, is_train=True, env_kwargs=env_kwargs)
         _val_envs = build_alfworld_envs(alf_config_path, config.env.seed + 1000, config.data.val_batch_size, group_n, is_train=False, env_kwargs=env_kwargs)
         
         num_attempts = config.env.get('num_attempts', 1)

@@ -22,21 +22,26 @@ class SimpleMemory:
         self.batch_size = batch_size
         self.keys = None
 
-    def store(self, record: Dict[str, List[Any]]):
+    def store(self, record: Dict[str, List[Any]], active_mask=None):
         """
         Store a new record (one step of history) for each environment instance.
 
         Args:
             record (Dict[str, List[Any]]):
-                A dictionary where each key corresponds to a type of data 
-                (e.g., 'text_obs', 'action'), and each value is a list of 
+                A dictionary where each key corresponds to a type of data
+                (e.g., 'text_obs', 'action'), and each value is a list of
                 length `batch_size`, containing the data for each environment.
+            active_mask (optional array-like of bool, length batch_size):
+                If provided, only store for environments where mask[i] is True.
+                Used to skip post-terminal steps for already-done workers.
         """
         if self.keys is None:
             self.keys = list(record.keys())
         assert self.keys == list(record.keys())
 
         for env_idx in range(self.batch_size):
+            if active_mask is not None and not active_mask[env_idx]:
+                continue
             self._data[env_idx].append({k: record[k][env_idx] for k in self.keys})
 
     def fetch(
