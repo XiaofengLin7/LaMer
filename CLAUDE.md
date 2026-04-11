@@ -125,3 +125,64 @@ conda run -n verl-agent python -m examples.gem.simulate_all_games
 # Training
 bash examples/gem/lamer_gem_multi_task.sh
 ```
+
+## SciWorld Environment
+
+ScienceWorld (text-based science lab) integration for multi-task multi-episode meta-RL training. Supports 6 tasks: find-animal, find-living-thing, find-plant, power-component, power-component-renewable-vs-nonrenewable-energy, identify-life-stages-2.
+
+### Architecture
+
+- **1 LaMer attempt = 1 episode = 1 game session** (up to `max_turns_per_episode=15` steps). The meta-RL loop's `num_attempts` (typically 3) handles multiple episodes with reflection between them.
+- `total_step_cap / max_turns_per_episode` = number of episodes per task (typically 3).
+- **Reuses GEM infrastructure**: `GEMEnvironmentManager`, `SimpleMemoryGEM`, `gem_projection`, `get_gem_prompt` are all reused directly. Only the adapter and wrapper are SciWorld-specific.
+
+### Key Files
+
+- `agent_system/environments/sciworld/env_adapter.py` — `SciWorldEnvAdapter` wrapping `scienceworld.ScienceWorldEnv` (JVM via py4j). Provides `get_rules()`, `reset(seed, task)`, `step(action)`, `close()`. Adds explicit feedback: success congratulations, failure score + goal progress breakdown.
+- `agent_system/environments/sciworld/multi_episode_wrapper.py` — Single-task wrapper. Unlike GEM's guess-and-restart, SciWorld runs one continuous game per episode. Done when: success (score>=100) OR max_turns reached.
+- `agent_system/environments/sciworld/env_manager.py` — `SciWorldMultiProcessEnv` + `make_envs()`. Reuses `GEMEnvironmentManager` directly (no subclass needed).
+- `examples/sciworld/multi_task_config.yaml` — Task configs for all 6 tasks, matching explorer's eval_sciworld_multi.yaml for consistent evaluation.
+- `examples/sciworld/lamer_sciworld.sh` — Training launch script.
+- `examples/sciworld/simulate_sciworld.py` — End-to-end simulation for debugging.
+
+### Important Design Decisions
+
+- **Explicit feedback on episode end**: Success shows "Congratulations!" + score. Failure shows score + goal progress (completed/not completed subgoals). This feedback is in the observation, visible in trajectory history across episodes.
+- **Cross-episode same task**: `restart()` resets with same seed, producing identical initial state for meta-RL learning.
+- **Evaluation consistency**: Val tasks match explorer's `eval_sciworld_multi.yaml` exactly (239 tasks: 75+75+75+5+5+4). Uses same SHA256-based seeding via `prepare_gem_data.py`.
+- **JVM lifecycle**: Each `SciWorldEnvAdapter` creates one JVM via py4j. Old wrappers are `close()`d before reconfiguration.
+- **Action format**: LLM outputs `\boxed{action}`, projection extracts it, adapter receives plain text action.
+
+### Testing
+
+```bash
+# Full simulation of 2 tasks (requires scienceworld package + torch)
+conda run -n verl-test python -m examples.sciworld.simulate_sciworld
+
+# Data preparation (reuses GEM data prep)
+python -m examples.gem.prepare_gem_data --config examples/sciworld/multi_task_config.yaml --seed 42 --output_dir ~/data/sciworld-multi-task
+
+# Training
+bash examples/sciworld/lamer_sciworld.sh
+```
+
+### Evaluation
+
+```bash
+# Benchmark a model checkpoint on SciWorld (matches explorer's eval settings)
+# Runs 2 evaluations: no-reflection (ReAct) + with-reflection (LaMer)
+MODEL_PATH=/path/to/checkpoint bash examples/sciworld/eval_sciworld_benchmark.sh
+
+# Optional env vars:
+#   ENGINE=vllm          — inference engine
+#   EXPERIMENT_TAG=v1    — suffix for wandb experiment names
+#   N_GPUS=2             — GPUs per node
+#   VAL_BATCH_SIZE=244   — validation batch size (default: all 244 tasks)
+```
+
+Settings:
+- Prompt/response lengths follow LaMer (`max_prompt_length=4096, max_response_length=1024`), not explorer, because the prompt systems are inherently different
+- Generation: `temperature=0.6, top_p=0.95, do_sample=True` (matching explorer)
+- Tasks: 6 tasks, 244 total test variations, `max_turns_per_episode=15`, 3 episodes per task
+- Seeds: SHA256-based deterministic seeding identical to explorer (uses same `inner_env_class` string)
+- Mode: `total_epochs=0 + val_before_train=True + val_only=True` for eval-only
