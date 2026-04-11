@@ -8,7 +8,7 @@ set -x
 #   Classification: find-animal (75), find-living-thing (75), find-plant (75)
 #   Electricity:    power-component (5), renewable-vs-nonrenewable (5)
 #   Biology:        identify-life-stages-2 (4)
-#   Total: 244 test variations
+#   Total: 239 test variations (padded to nearest GPU multiple)
 #
 # Each run evaluates twice:
 #   1) Without reflection (ReAct baseline)
@@ -22,7 +22,7 @@ set -x
 #   EXPERIMENT_TAG   — suffix for experiment names (default: "benchmark")
 #   CONDA_ENV        — conda environment name (default: verl-test)
 #   N_GPUS           — number of GPUs per node (default: 2)
-#   VAL_BATCH_SIZE   — validation batch size (default: 244, all tasks)
+#   VAL_BATCH_SIZE   — validation batch size (default: 239, all tasks)
 # ============================================================
 
 # ---- Environment setup ----
@@ -46,21 +46,23 @@ fi
 ENGINE=${ENGINE:-vllm}
 EXPERIMENT_TAG=${EXPERIMENT_TAG:-benchmark}
 N_GPUS=${N_GPUS:-2}
-# Must match total val tasks (239) — GEMEnvironmentManager requires
-# batch size == num_processes (no partial batches supported)
-VAL_BATCH_SIZE=${VAL_BATCH_SIZE:-239}
 MODEL_NAME=$(basename "$MODEL_PATH" | tr '[:upper:]' '[:lower:]')
+
+# Compute padded val batch size (239 real tasks → nearest multiple of N_GPUS)
+REAL_VAL_COUNT=239
+VAL_BATCH_SIZE=${VAL_BATCH_SIZE:-$(python3 -c "import math; print(math.ceil($REAL_VAL_COUNT / $N_GPUS) * $N_GPUS)")}
 
 SCIWORLD_CONFIG=examples/sciworld/multi_task_config.yaml
 DATA_DIR=$HOME/data/sciworld-eval-${EXPERIMENT_TAG}
 
-# ---- Step 1: Prepare evaluation data (Orbit-identical seeds) ----
+# ---- Step 1: Prepare evaluation data (Orbit-identical seeds + GPU padding) ----
 echo "=========================================="
 echo "Preparing SciWorld evaluation data..."
 echo "=========================================="
 python3 -m examples.gem.prepare_gem_data \
     --config "$SCIWORLD_CONFIG" \
     --seed 42 \
+    --pad_to_multiple "$N_GPUS" \
     --output_dir "$DATA_DIR"
 
 if [ $? -ne 0 ]; then
@@ -191,7 +193,7 @@ echo ""
 echo "=========================================="
 echo "SciWorld benchmark complete."
 echo "  Model:      $MODEL_PATH"
-echo "  Tasks:      6 (244 total test variations)"
+echo "  Tasks:      6 (239 real + padding to $VAL_BATCH_SIZE)"
 echo "  Runs:       2 (no-reflection + reflection)"
 echo "  Logging:    wandb project=sciworld-benchmark"
 echo "=========================================="

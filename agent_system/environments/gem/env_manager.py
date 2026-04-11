@@ -357,10 +357,13 @@ class GEMEnvironmentManager(EnvironmentManagerBase):
                 success[f'success_rate/{data_source}'].append(_won)
             else:
                 # Per-episode (non-cumulative) for validation
+                is_padding = (data_source == '__padding__')
                 for traj_idx, won in enumerate(wons):
-                    success[f'episode_{traj_idx}/success_rate'].append(won)
+                    if not is_padding:
+                        success[f'episode_{traj_idx}/success_rate'].append(won)
                     success[f'episode_{traj_idx}/success_rate/{data_source}'].append(won)
-                success[f'success_rate'].append(any(wons))
+                if not is_padding:
+                    success[f'success_rate'].append(any(wons))
                 success[f'success_rate/{data_source}'].append(any(wons))
 
         return {key: np.array(value) for key, value in success.items()}

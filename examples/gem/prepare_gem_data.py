@@ -14,6 +14,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 import os
@@ -98,6 +99,8 @@ def main():
                         help="Global seed for deterministic task generation")
     parser.add_argument("--output_dir", type=str, default="~/data/gem-multi-task",
                         help="Output directory for parquet files")
+    parser.add_argument("--pad_to_multiple", type=int, default=None,
+                        help="Pad val set to nearest multiple of this number (e.g., 4 for 4 GPUs)")
     args = parser.parse_args()
 
     config_path = Path(args.config)
@@ -131,6 +134,16 @@ def main():
     # Build parquet rows
     train_rows = build_parquet_rows(train_data, "train")
     val_rows = build_parquet_rows(val_data, "test")
+
+    # Pad val set to GPU-friendly multiple if requested
+    if args.pad_to_multiple and len(val_rows) % args.pad_to_multiple != 0:
+        pad_count = args.pad_to_multiple - (len(val_rows) % args.pad_to_multiple)
+        for _ in range(pad_count):
+            pad_row = copy.deepcopy(val_rows[-1])
+            pad_row["data_source"] = "__padding__"
+            pad_row["extra_info"]["data_source"] = "__padding__"
+            val_rows.append(pad_row)
+        print(f"Padded val set: {len(val_rows) - pad_count} → {len(val_rows)} (+{pad_count} padding)")
 
     # Save to parquet
     output_dir = os.path.expanduser(args.output_dir)

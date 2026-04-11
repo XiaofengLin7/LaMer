@@ -837,10 +837,14 @@ class RayPPOTrainer:
 
         metric_dict = {}
         for data_source, rewards in data_source_reward.items():
+            if data_source == '__padding__':
+                continue
             safe_ds = data_source.replace('|', '_').replace('[', '_').replace(']', '').replace(':', '_')
             metric_dict[f'val/test_score/{safe_ds}'] = np.mean(rewards)
 
         for k, v in success_rate.items():
+            if '__padding__' in k:
+                continue
             # Sanitize key: MLflow forbids '|' and '['/']' in metric names.
             safe_k = k.replace('|', '_').replace('[', '_').replace(']', '').replace(':', '_')
             metric_dict[f'val/{safe_k}'] = v
