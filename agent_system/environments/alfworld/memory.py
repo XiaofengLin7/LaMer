@@ -85,7 +85,18 @@ class SimpleMemory:
             valid_lengths.append(valid_len)
 
         return memory_contexts, valid_lengths
-    
+
+    def fetch_won(self) -> List[bool]:
+        """Return whether each environment's last step was won."""
+        result = []
+        for env_idx in range(self.batch_size):
+            data = self._data[env_idx]
+            if data and 'won' in data[-1]:
+                result.append(bool(data[-1]['won']))
+            else:
+                result.append(False)
+        return result
+
     def _fetch(
         self,
         history_length: int,
