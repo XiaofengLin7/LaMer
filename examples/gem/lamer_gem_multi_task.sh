@@ -34,13 +34,16 @@ reflection_type="${REFLECTION_TYPE:-history_and_reflection}"
 # max_turns = max(total_step_cap) across all tasks = 30
 GEM_CONFIG=examples/gem/multi_task_multi_episode_config.yaml
 DATA_DIR=$HOME/data/gem-multi-task
-MODEL_NAME=Qwen3-8B
 DISABLE_THINKING=False
 ENABLE_REFLECTION=True
+# MODEL_NAME=Qwen3-8B
+# MODEL_PATH="/shared/public/elr-models/Qwen/Qwen3-8B/2069b3fae1114555f3c020c81410e51fa0f656f2_130k_context"
+MODEL_NAME=GLM-4-9B-0414
+# MODEL_PATH="/shared/public/models/zai-org-GLM-4-9B-0414"
+MODEL_PATH="/shared/public/sharing/sirzhu/Lamer/gem-multi-task-multi-task-multi-episode-config-GLM-4-9B-0414-disable-thinking-False-enable-reflection-True-reflection-type-reflection_only-ff8496b108549420db5f/global_step_100/actor_hf"
 CONFIG_NAME=$(basename "$GEM_CONFIG" .yaml | tr '[:upper:]' '[:lower:]' | tr '_' '-')
 EXPERIMENT_NAME="gem-multi-task-${CONFIG_NAME}-${MODEL_NAME}-disable-thinking-${DISABLE_THINKING}-enable-reflection-${ENABLE_REFLECTION}-reflection-type-${reflection_type}-${FLYTE_INTERNAL_EXECUTION_ID}"
-MODEL_PATH="/shared/public/elr-models/Qwen/Qwen3-8B/2069b3fae1114555f3c020c81410e51fa0f656f2_130k_context"
-# MODEL_PATH="/shared/public/sharing/sirzhu/Lamer/gem-multi-task-multi-task-multi-episode-config-Qwen3-8B-disable-thinking-False-enable-reflection-True-f436c650c36e549098f2/global_step_20/actor_hf"
+
 # Step 1: Prepare data with Orbit-identical seeds
 python3 -m examples.gem.prepare_gem_data \
     --config $GEM_CONFIG \
@@ -55,7 +58,7 @@ python3 -m verl.trainer.main_ppo \
     data.train_batch_size=$train_batch_size \
     data.val_batch_size=$val_batch_size \
     data.max_prompt_length=7168 \
-    data.max_response_length=1024 \
+    data.max_response_length=2048 \
     data.filter_overlong_prompts=True \
     data.truncation=left \
     data.return_raw_chat=True \
@@ -70,10 +73,10 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.model.enable_gradient_checkpointing=True \
     actor_rollout_ref.actor.fsdp_config.param_offload=True \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=True \
-    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=32 \
+    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=16 \
     actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
     actor_rollout_ref.rollout.name=$ENGINE \
-    actor_rollout_ref.rollout.max_model_len=8192 \
+    actor_rollout_ref.rollout.max_model_len=9216 \
     actor_rollout_ref.rollout.gpu_memory_utilization=0.8 \
     actor_rollout_ref.rollout.enable_chunked_prefill=False \
     actor_rollout_ref.rollout.enforce_eager=False \
@@ -84,7 +87,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.val_kwargs.do_sample=True \
     +actor_rollout_ref.rollout.val_kwargs.seed=20 \
     actor_rollout_ref.rollout.max_num_batched_tokens=32768 \
-    actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=32 \
+    actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=16 \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
     actor_rollout_ref.actor.use_invalid_action_penalty=True \
     actor_rollout_ref.actor.invalid_action_penalty_coef=0.5 \

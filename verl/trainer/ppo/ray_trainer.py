@@ -88,6 +88,7 @@ class AdvantageEstimator(str, Enum):
 
     GAE = "gae"
     GRPO = "grpo"
+    REINFORCE = "reinforce"
     REINFORCE_PLUS_PLUS = "reinforce_plus_plus"
     REINFORCE_PLUS_PLUS_BASELINE = "reinforce_plus_plus_baseline"
     REMAX = "remax"
@@ -317,6 +318,14 @@ def compute_advantage(data: DataProto, adv_estimator, gamma=1.0, step_gamma=0.95
         )
         data.batch["advantages"] = advantages
         data.batch["returns"] = returns
+    elif adv_estimator == AdvantageEstimator.REINFORCE:
+        advantages, returns = core_algos.compute_reinforce_outcome_advantage(
+            token_level_rewards=data.batch["token_level_rewards"],
+            response_mask=data.batch["response_mask"],
+            step_returns=data.batch.get("step_returns", None),
+        )
+        data.batch["advantages"] = advantages
+        data.batch["returns"] = returns
     elif adv_estimator == AdvantageEstimator.REINFORCE_PLUS_PLUS:
         advantages, returns = core_algos.compute_reinforce_plus_plus_outcome_advantage(
             token_level_rewards=data.batch["token_level_rewards"],
@@ -448,6 +457,7 @@ class RayPPOTrainer:
         elif self.config.algorithm.adv_estimator in [
             AdvantageEstimator.GRPO,
             AdvantageEstimator.GRPO_PASSK,
+            AdvantageEstimator.REINFORCE,
             AdvantageEstimator.REINFORCE_PLUS_PLUS,
             AdvantageEstimator.REMAX,
             AdvantageEstimator.RLOO,
@@ -690,7 +700,7 @@ class RayPPOTrainer:
         generations_to_log = self.config.trainer.log_val_generations
 
         print('#### Trajectory CoT logging ####')
-        for idx in range(generations_to_log):
+        for idx in range(min(generations_to_log, len(traj_cot_logs))):
             traj_cot_log = traj_cot_logs[idx]
             # print trajectory
             for k, v in traj_cot_log.items():
@@ -731,11 +741,16 @@ class RayPPOTrainer:
         reward_tensor_lst = []
         data_source_lst = []
         success_rate_dict = {}
+        all_traj_cot_logs = []
 
         # Lists to collect samples for the table
         sample_inputs = []
         sample_outputs = []
         sample_scores = []
+
+        # Accumulators for sequence length stats
+        prompt_lengths = []
+        response_lengths = []
 
         for test_data in self.val_dataloader:
             test_batch = DataProto.from_single_dict(test_data)
@@ -791,9 +806,19 @@ class RayPPOTrainer:
                                                                     envs=self.val_envs,
                                                                     is_train=False,
                                                                     )
+            all_traj_cot_logs.extend(traj_cot_logs)
             print('validation generation end')
             del test_batch
             test_batch = test_output_gen_batch
+            # Track prompt and response lengths
+            if "input_ids" in test_batch.batch and "responses" in test_batch.batch:
+                attn_mask = test_batch.batch["attention_mask"]
+                resp = test_batch.batch["responses"]
+                resp_len = resp.shape[1]
+                prompt_mask = attn_mask[:, :-resp_len]
+                resp_mask = attn_mask[:, -resp_len:]
+                prompt_lengths.extend(prompt_mask.sum(-1).cpu().tolist())
+                response_lengths.extend(resp_mask.sum(-1).cpu().tolist())
             # Store generated outputs
             output_ids = test_output_gen_batch.batch["responses"]
             output_texts = [self.tokenizer.decode(ids, skip_special_tokens=True) for ids in output_ids]
@@ -821,7 +846,7 @@ class RayPPOTrainer:
                         assert test_batch.non_tensor_batch[k][0] == test_batch.non_tensor_batch[k][i], f'not all success_rate are the same, 0: {test_batch.non_tensor_batch[k][0]}, {i}: {test_batch.non_tensor_batch[k][i]}'
 
         # self._maybe_log_val_generations(inputs=sample_inputs, outputs=sample_outputs, scores=sample_scores)
-        self._maybe_log_val_trajectory(traj_cot_logs)
+        self._maybe_log_val_trajectory(all_traj_cot_logs)
 
         reward_tensor = torch.cat(reward_tensor_lst, dim=0).sum(-1).cpu()  # (batch_size,)
         data_sources = np.concatenate(data_source_lst, axis=0)
@@ -848,6 +873,11 @@ class RayPPOTrainer:
             # Sanitize key: MLflow forbids '|' and '['/']' in metric names.
             safe_k = k.replace('|', '_').replace('[', '_').replace(']', '').replace(':', '_')
             metric_dict[f'val/{safe_k}'] = v
+
+        if prompt_lengths:
+            metric_dict['val/prompt_length_mean'] = np.mean(prompt_lengths)
+        if response_lengths:
+            metric_dict['val/response_length_mean'] = np.mean(response_lengths)
 
         print(metric_dict)
         return metric_dict

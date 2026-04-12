@@ -104,6 +104,14 @@
                 "workflow_name": "lamer_eval.workflows.workflow.lamer_eval_webshop_gigpo_reflect_only_workflow"
             },
             {
+                "name": "eval_alfworld_grpo_har",
+                "workflow_name": "lamer_eval.workflows.workflow.lamer_eval_alfworld_grpo_har_workflow"
+            },
+            {
+                "name": "eval_webshop_grpo_har",
+                "workflow_name": "lamer_eval.workflows.workflow.lamer_eval_webshop_grpo_har_workflow"
+            },
+            {
                 "name": "gem_multi_task_history_and_reflection",
                 "workflow_name": "lamer_eval.workflows.workflow.lamer_gem_multi_task_history_and_reflection_workflow"
             },
@@ -114,6 +122,30 @@
             {
                 "name": "gem_multi_task_reflection_only",
                 "workflow_name": "lamer_eval.workflows.workflow.lamer_gem_multi_task_reflection_only_workflow"
+            },
+            {
+                "name": "gem_multi_task_reinforce_har",
+                "workflow_name": "lamer_eval.workflows.workflow.lamer_gem_multi_task_reinforce_har_workflow"
+            },
+            {
+                "name": "gem_multi_task_reinforce_reflection_only",
+                "workflow_name": "lamer_eval.workflows.workflow.lamer_gem_multi_task_reinforce_reflection_only_workflow"
+            },
+            {
+                "name": "eval_webshop_reflection_only_multi_model_qwen",
+                "workflow_name": "lamer_eval.workflows.workflow.lamer_eval_webshop_reflection_only_multi_model_qwen_workflow"
+            },
+            {
+                "name": "eval_alfworld_reflection_only_multi_model_qwen",
+                "workflow_name": "lamer_eval.workflows.workflow.lamer_eval_alfworld_reflection_only_multi_model_qwen_workflow"
+            },
+            {
+                "name": "eval_alfworld_reflection_only_multi_model_zai",
+                "workflow_name": "lamer_eval.workflows.workflow.lamer_eval_alfworld_reflection_only_multi_model_zai_workflow"
+            },
+            {
+                "name": "eval_webshop_reflection_only_multi_model_zai",
+                "workflow_name": "lamer_eval.workflows.workflow.lamer_eval_webshop_reflection_only_multi_model_zai_workflow"
             }
         ]
     }

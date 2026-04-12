@@ -72,7 +72,8 @@ echo "  ALFWORLD_DATA:    ${ALFWORLD_DATA}"
 echo "=========================================="
 
 # ── Experiment name ───────────────────────────────────────────────────────────
-EXPERIMENT_NAME="lamer-eval-alfworld-${REFLECTION_TYPE}-${FLYTE_INTERNAL_EXECUTION_ID:-local}"
+MODEL_NAME=${MODEL_NAME:-unknown}
+EXPERIMENT_NAME="lamer-eval-alfworld-${MODEL_NAME}-${REFLECTION_TYPE}-${FLYTE_INTERNAL_EXECUTION_ID:-local}"
 
 # ── Run evaluation (val_before_train=True, total_epochs=0 → validation only) ─
 python3 -m verl.trainer.main_ppo \

@@ -99,7 +99,8 @@ print("Created dummy scaffold data: train=${TRAIN_BATCH_SIZE} test=${VAL_TOTAL_S
 EOF
 
 # ── Experiment name ───────────────────────────────────────────────────────────
-EXPERIMENT_NAME="lamer-eval-webshop-${REFLECTION_TYPE}-${FLYTE_INTERNAL_EXECUTION_ID:-local}"
+MODEL_NAME=${MODEL_NAME:-unknown}
+EXPERIMENT_NAME="lamer-eval-webshop-${MODEL_NAME}-${REFLECTION_TYPE}-${FLYTE_INTERNAL_EXECUTION_ID:-local}"
 
 # ── Run evaluation (val_before_train=True, total_epochs=0 → validation only) ─
 python3 -m verl.trainer.main_ppo \

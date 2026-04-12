@@ -13,7 +13,7 @@ Now it's your turn to take an action.
 
 
 ALFWORLD_REFLECT_PROMPT = """
-You are an expert agent operating in the ALFRED Embodied Environment. 
+You are an expert agent operating in the ALFRED Embodied Environment.
 {init_observation}
 
 You will be given the history of a past experience.
@@ -21,7 +21,7 @@ Your job is to **reflect on the past sequence**, identify any **mistakes or inef
 
 Below are the actions you took and the corresponding observations:
 {current_trajectory}
-The task is NOT successfully completed.
+{completion_status}
 
 Now it's your turn to reflect on the past experience and come up with a new plan of action.
 
@@ -33,47 +33,55 @@ Now it's your turn to reflect on the past experience and come up with a new plan
 # Prompt templates for parsing past trajectories and reflections
 PAST_TRAJECTORY_AND_REFLECTION_TEMPLATE = '''
 
-On trial #{traj_idx}, the actions you took and the corresponding observations are: 
+On trial #{traj_idx}, the actions you took and the corresponding observations are:
 {past_trajectory}
-The task is NOT successfully completed. Your reflection is: 
+{completion_status} Your reflection is:
 {reflection}'''
 
 HISTORY_ONLY_TEMPLATE = '''
 
-On trial #{traj_idx}, the actions you took and the corresponding observations are: 
+On trial #{traj_idx}, the actions you took and the corresponding observations are:
 {past_trajectory}
-The task is NOT successfully completed.
+{completion_status}
 '''
 
 REFLECTION_ONLY_TEMPLATE = '''
 
-On trial #{traj_idx}, the task is NOT successfully completed. Your reflection is:
+On trial #{traj_idx}, {completion_status_lower} Your reflection is:
 {reflection}'''
 
 import logging as _logging
 _prompt_logger = _logging.getLogger(__name__)
 
-def parse_reflection(traj_idx, past_traj, reflection, reflection_type='reflection_only'):
+def _completion_status(won: bool):
+    return "The task is successfully completed." if won else "The task is NOT successfully completed."
+
+def parse_reflection(traj_idx, past_traj, reflection, reflection_type='reflection_only', wons=None):
     if traj_idx == 0 or len(reflection) == 0:
         return '\n'
     else:
         _prompt_logger.info(f'[prompt] reflection_type={reflection_type!r} | traj_idx={traj_idx} | template={"PAST_TRAJECTORY_AND_REFLECTION_TEMPLATE" if reflection_type == "history_and_reflection" else "HISTORY_ONLY_TEMPLATE" if reflection_type == "history_only" else "REFLECTION_ONLY_TEMPLATE"}')
         memories = []
         for _idx in range(traj_idx):
+            won = wons[_idx] if wons is not None else False
+            status = _completion_status(won)
             if reflection_type == 'history_and_reflection':
                 memory = PAST_TRAJECTORY_AND_REFLECTION_TEMPLATE.format(
                     traj_idx=_idx + 1,
                     past_trajectory=past_traj[_idx],
+                    completion_status=status,
                     reflection=reflection[_idx]
                 )
             elif reflection_type == 'history_only':
                 memory = HISTORY_ONLY_TEMPLATE.format(
                     traj_idx=_idx + 1,
                     past_trajectory=past_traj[_idx],
+                    completion_status=status,
                 )
             elif reflection_type == 'reflection_only':
                 memory = REFLECTION_ONLY_TEMPLATE.format(
                     traj_idx=_idx + 1,
+                    completion_status_lower=status.lower(),
                     reflection=reflection[_idx]
                 )
             memories.append(memory)
@@ -120,10 +128,11 @@ def get_alfworld_prompt(phase: str = 'play',
                         admissible_actions: str='',
                         reflection: str='',
                         reflection_type: str='reflection_only',
+                        wons: list=None,
                         ):
     assert phase in ['play', 'reflect']
     if phase == 'play':
-        past_trajectories_reflections = parse_reflection(traj_idx, past_traj, reflection, reflection_type)
+        past_trajectories_reflections = parse_reflection(traj_idx, past_traj, reflection, reflection_type, wons=wons)
         current_trajectory = parse_current_trajectory(turn_idx, traj_idx, curr_traj)
 
         prompt = ALFWORLD_PLAY_PROMPT.format(
@@ -135,9 +144,11 @@ def get_alfworld_prompt(phase: str = 'play',
 
     else:
         current_trajectory = parse_current_trajectory(turn_idx, traj_idx, curr_traj)
+        curr_won = wons[traj_idx] if wons is not None else False
         prompt = ALFWORLD_REFLECT_PROMPT.format(
             init_observation=init_observation,
             current_trajectory=current_trajectory,
+            completion_status=_completion_status(curr_won),
         )
 
     return prompt.strip()

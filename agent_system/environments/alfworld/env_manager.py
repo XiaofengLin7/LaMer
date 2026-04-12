@@ -195,10 +195,13 @@ class AlfWorldEnvironmentManager(EnvironmentManagerBase):
             curr_trajs, _ = self.memories[self.curr_traj_idx].fetch(history_length=15)
 
         past_trajs = [{} for _ in range(self.num_processes)]
-        for traj_idx in range(self.curr_traj_idx):
+        past_wons = [{} for _ in range(self.num_processes)]
+        for traj_idx in range(self.curr_traj_idx + 1):  # include current traj for reflect phase
             trajectories, _ = self.memories[traj_idx].fetch(history_length=15)
+            won_list = self.memories[traj_idx].fetch_won()
             for i in range(self.num_processes):
                 past_trajs[i][traj_idx] = trajectories[i]
+                past_wons[i][traj_idx] = won_list[i]
 
         for i in range(self.num_processes):
             # exclude 'help' in admissible_actions[i]
@@ -216,7 +219,8 @@ class AlfWorldEnvironmentManager(EnvironmentManagerBase):
                 past_traj=past_trajs[i],
                 admissible_actions=reformatted_admissible_actions,
                 reflection=self.reflections[i],
-                reflection_type=self.reflection_type
+                reflection_type=self.reflection_type,
+                wons=past_wons[i],
             )
 
             postprocess_text_obs.append(obs)

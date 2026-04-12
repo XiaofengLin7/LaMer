@@ -326,6 +326,30 @@ def compute_rloo_outcome_advantage(token_level_rewards: torch.Tensor, response_m
     return scores, scores
 
 
+def compute_reinforce_outcome_advantage(token_level_rewards: torch.Tensor, response_mask: torch.Tensor,
+                                        step_returns: torch.Tensor = None):
+    """
+    Compute advantage for plain REINFORCE (no baseline).
+    If step_returns is provided, uses traj_gamma-discounted returns (from credit_assignment) as the
+    advantage signal — equivalent to GiGPO's step term without group mean/std normalization.
+    Otherwise falls back to raw binary episode reward.
+    Args:
+        token_level_rewards: (bs, response_length) — sparse reward at last token
+        response_mask: (bs, response_length)
+        step_returns: (bs,) — traj_gamma-discounted returns from credit_assignment (optional)
+    Returns:
+        advantages: (bs, response_length)
+        returns: (bs, response_length)
+    """
+    with torch.no_grad():
+        if step_returns is not None:
+            scores = step_returns  # (bs,) — traj_gamma discounted across attempts
+        else:
+            scores = token_level_rewards.sum(dim=-1)  # (bs,) — raw binary
+        advantages = scores.unsqueeze(-1) * response_mask
+    return advantages, advantages
+
+
 def compute_reinforce_plus_plus_outcome_advantage(token_level_rewards: torch.Tensor, response_mask: torch.Tensor, gamma: torch.Tensor):
     """
     Compute advantage for REINFORCE++.
