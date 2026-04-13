@@ -1,71 +1,94 @@
-import torch
-import random
-from typing import List
+"""Action parsing for WebShop environments.
+
+Aligned with ALFWorld projection: uses \\boxed{...} action format.
+The projection extracts the boxed action from the full LLM response
+(stripping thinking/reasoning), so that only the concise action is
+stored in memory and included in future prompts.
+"""
+
 import re
 import copy
-import json
+from typing import List, Tuple
 
-def is_valid_json(text: str) -> bool:
-    try:
-        json.loads(text)
-        return True
-    except json.JSONDecodeError:
-        return False
+
+def _strip_thinking(text: str) -> str:
+    """Remove all thinking content from LLM output.
+
+    Handles both complete <think>...</think> blocks and truncated
+    responses where </think> is missing (model hit max_response_length).
+    """
+    # First: strip complete <think>...</think> blocks
+    cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+    # Then: strip truncated <think>... (no closing tag, rest of text is thinking)
+    cleaned = re.sub(r"<think>.*", "", cleaned, flags=re.DOTALL)
+    return cleaned.strip()
+
+
+def _extract_boxed_action(text: str) -> Tuple[str, bool]:
+    """Extract the action from \\boxed{...} in LLM output.
+
+    Returns:
+        (action_text, valid) where action_text is the raw text forwarded
+        to the environment, and valid=True if \\boxed{} was found.
+    """
+    # Find \boxed{...} in the FULL text first (before stripping thinking)
+    pattern = r"\\boxed\{([^}]*)\}"
+    matches = list(re.finditer(pattern, text, re.IGNORECASE))
+    if matches:
+        return matches[-1].group(1).strip().lower(), True
+
+    # No \boxed{} found — strip thinking and return short fallback
+    cleaned = _strip_thinking(text)
+    if cleaned:
+        # Cap at 100 chars to prevent bloat from truncated responses
+        return cleaned[-100:].lower(), False
+    return "", False
+
+
+def _extract_reflection(text: str) -> Tuple[str, bool]:
+    """Extract reflection from <remark>...</remark> tags.
+
+    Returns:
+        (reflection_text, valid) where valid=True if tags were found.
+    """
+    cleaned = _strip_thinking(text)
+
+    match = re.search(r"<remark>(.*?)</remark>", cleaned, re.DOTALL | re.IGNORECASE)
+    if match:
+        return match.group(1).strip()[:2000], True
+    return cleaned[:2000], False
+
 
 def webshop_projection(actions: List[str], phase='play'):
+    """Parse LLM text output for WebShop environments.
+
+    Args:
+        actions: Raw text outputs from the LLM.
+        phase: 'play' or 'reflect'.
+
+    Returns:
+        If phase == 'play':
+            (actions, valids) where actions are the extracted
+            \\boxed{...} content (lowercased).
+        If phase == 'reflect':
+            (reflections, valids) where reflections are extracted from
+            <remark>...</remark> tags.
     """
-    A function to process the actions.
-    actions: the list of actions to be processed, it is a list of strings.
-    """
-    actions = copy.deepcopy(actions)
-    
-    if phase == 'play':
-    
-        valids = [0] * len(actions)
-        plans = [''] * len(actions)
+    assert phase in ['play', 'reflect']
 
-        for i in range(len(actions)):
-            original_str = actions[i]  # keep the original string
-            actions[i] = actions[i].lower()
-
-            # Attempt to extract the substring within <action>...</action>
-            start_tag = "<action>"
-            end_tag = "</action>"
-            start_idx = actions[i].find(start_tag)
-            end_idx = actions[i].find(end_tag)
-            try:
-                if start_idx == -1 or end_idx == -1:
-                    # If we can't find a valid <action>...</action> block, mark as invalid
-                    actions[i] = actions[i][-20:]  # 0 is invalid action for Sokoban
-                    continue
-
-                # Extract just the content between the tags
-                extracted_action = actions[i][start_idx + len(start_tag):end_idx].strip().lower()
-                
-                actions[i] = extracted_action
-                valids[i] = 1
-
-            except:
-                # randomly choose an action from the action list if illegal
-                actions[i] = actions[i][-20:]
-                
-        return actions, valids
-    
-    else:
-        # reflect phase
-        valids = [0] * len(actions)
-        reflections = [''] * len(actions)
-
-        for i in range(len(actions)):
-            action = actions[i]
-            start_tag = "<remark>"
-            start_idx = action.rfind(start_tag)
-            end_tag = "</remark>"
-            end_idx = action.rfind(end_tag)
-            if start_idx == -1 or end_idx == -1:
-                reflections[i] = ''
-            else:
-                reflections[i] = action[start_idx + len(start_tag):end_idx].strip()[:2000] # max 2000 characters
-                valids[i] = 1
-
+    if phase == 'reflect':
+        reflections = []
+        valids = []
+        for text in actions:
+            reflection, valid = _extract_reflection(text)
+            reflections.append(reflection)
+            valids.append(valid)
         return reflections, valids
+    else:
+        extracted = []
+        valids = []
+        for text in actions:
+            action, valid = _extract_boxed_action(text)
+            extracted.append(action)
+            valids.append(valid)
+        return extracted, valids
