@@ -9,7 +9,7 @@ Your admissible actions of the current situation are:
 
 Now it's your turn to take one action for the current step.
 Your response should first be step-by-step reasoning about the current situation, then think carefully which admissible action best advances the shopping goal.
-Once you've finished your reasoning, you should choose an admissible action for current step and present it within <action> </action> tags.
+Once you've finished your reasoning, you should choose an admissible action for the current step and present it as \\boxed{{your action}}.
 """
 
 WEBSHOP_REFLECT_PROMPT = '''

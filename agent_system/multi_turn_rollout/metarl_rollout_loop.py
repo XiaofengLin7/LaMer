@@ -536,8 +536,11 @@ class TrajectoryCollector:
             action_idx = 0
             phase = ''
             for i, step in enumerate(traj_batch):
-                # ignore system prompt
-                input_text = self.tokenizer.decode(step['input_ids'], skip_special_tokens=True).replace("You are Qwen, created by Alibaba Cloud. You are a helpful assistant", "").split('assistant')[0]
+                # Decode prompt tokens only (model-agnostic: avoids string-splitting
+                # on 'assistant' which breaks for non-Qwen chat templates like GLM-4).
+                response_len = len(step['responses'])
+                prompt_ids = step['input_ids'][:-response_len] if response_len > 0 else step['input_ids']
+                input_text = self.tokenizer.decode(prompt_ids, skip_special_tokens=True)
                 text_action = self.tokenizer.decode(step['responses'], skip_special_tokens=True)
 
                 if step['phase'] != phase:
